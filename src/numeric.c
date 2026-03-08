@@ -133,7 +133,7 @@ mrb_int_pow(mrb_state *mrb, mrb_value x, mrb_value y)
  *
  *  num ** other  ->  num
  *
- * Raises <code>num</code> the <code>other</code> power.
+ * Raises `num` the `other` power.
  *
  *    2.0**3      #=> 8.0
  */
@@ -198,7 +198,7 @@ mrb_div_int_value(mrb_state *mrb, mrb_int x, mrb_int y)
  *   int / num  ->  num
  *
  * Performs division: the class of the resulting object depends on
- * the class of <code>num</code> and on the magnitude of the
+ * the class of `num` and on the magnitude of the
  * result.
  */
 static mrb_value
@@ -333,7 +333,7 @@ coerce_step_counter(mrb_state *mrb, mrb_value self)
  *
  * Document-class: Float
  *
- *  <code>Float</code> objects represent inexact real numbers using
+ *  `Float` objects represent inexact real numbers using
  *  the native architecture's double-precision floating-point
  *  representation.
  */
@@ -448,8 +448,8 @@ mrb_float_to_str(mrb_state *mrb, mrb_value flo, const char *fmt)
  *
  *  Returns a string containing a representation of self. As well as a
  *  fixed or exponential form of the number, the call may return
- *  "<code>NaN</code>", "<code>Infinity</code>", and
- *  "<code>-Infinity</code>".
+ *  "`NaN`", "`Infinity`", and
+ *  "`-Infinity`".
  *
  *     3.0.to_s   #=> 3.0
  *     3.25.to_s  #=> 3.25
@@ -481,8 +481,8 @@ flo_to_s(mrb_state *mrb, mrb_value flt)
  * call-seq:
  *   float + other  ->  float
  *
- * Returns a new float which is the sum of <code>float</code>
- * and <code>other</code>.
+ * Returns a new float which is the sum of `float`
+ * and `other`.
  */
 static mrb_value
 flo_add(mrb_state *mrb, mrb_value x)
@@ -507,8 +507,8 @@ flo_add(mrb_state *mrb, mrb_value x)
  * call-seq:
  *   float - other  ->  float
  *
- * Returns a new float which is the difference of <code>float</code>
- * and <code>other</code>.
+ * Returns a new float which is the difference of `float`
+ * and `other`.
  */
 
 static mrb_value
@@ -534,8 +534,8 @@ flo_sub(mrb_state *mrb, mrb_value x)
  * call-seq:
  *   float * other  ->  float
  *
- * Returns a new float which is the product of <code>float</code>
- * and <code>other</code>.
+ * Returns a new float which is the product of `float`
+ * and `other`.
  */
 
 static mrb_value
@@ -599,7 +599,7 @@ flodivmod(mrb_state *mrb, double x, double y, mrb_float *divp, mrb_float *modp)
  *     flt % other        ->  float
  *     flt.modulo(other)  ->  float
  *
- *  Return the modulo after division of <code>flt</code> by <code>other</code>.
+ *  Return the modulo after division of `flt` by `other`.
  *
  *     6543.21.modulo(137)      #=> 104.21
  *     6543.21.modulo(137.24)   #=> 92.9299999999996
@@ -621,7 +621,7 @@ flo_mod(mrb_state *mrb, mrb_value x)
  *  call-seq:
  *     num.eql?(numeric)  ->  true or false
  *
- *  Returns <code>true</code> if <i>num</i> and <i>numeric</i> are the
+ *  Returns `true` if `num` and `numeric` are the
  *  same type and have equal values.
  *
  *     1 == 1.0          #=> true
@@ -657,9 +657,9 @@ num_eql(mrb_state *mrb, mrb_value x)
  *  call-seq:
  *     flt == obj  ->  true or false
  *
- *  Returns <code>true</code> only if <i>obj</i> has the same value
- *  as <i>flt</i>. Contrast this with <code>Float#eql?</code>, which
- *  requires <i>obj</i> to be a <code>Float</code>.
+ *  Returns `true` only if *obj* has the same value
+ *  as *flt*. Contrast this with `Float#eql?`, which
+ *  requires *obj* to be a `Float`.
  *
  *     1.0 == 1   #=> true
  *
@@ -695,7 +695,7 @@ flo_eq(mrb_state *mrb, mrb_value x)
  * call-seq:
  *   flt.to_f  ->  self
  *
- * As <code>flt</code> is already a float, returns +self+.
+ * As `flt` is already a float, returns `self`.
  */
 
 /* 15.2.9.3.11 */
@@ -703,7 +703,7 @@ flo_eq(mrb_state *mrb, mrb_value x)
  *  call-seq:
  *     flt.infinite?  ->  nil, -1, +1
  *
- *  Returns <code>nil</code>, -1, or +1 depending on whether <i>flt</i>
+ *  Returns `nil`, -1, or +1 depending on whether *flt*
  *  is finite, -infinity, or +infinity.
  *
  *     (0.0).infinite?        #=> nil
@@ -727,9 +727,9 @@ flo_infinite_p(mrb_state *mrb, mrb_value num)
  *  call-seq:
  *     flt.finite?  ->  true or false
  *
- *  Returns <code>true</code> if <i>flt</i> is a valid IEEE floating
- *  point number (it is not infinite, and <code>nan?</code> is
- *  <code>false</code>).
+ *  Returns `true` if *flt* is a valid IEEE floating
+ *  point number (it is not infinite, and `nan?` is
+ *  `false`).
  *
  */
 
@@ -825,13 +825,13 @@ flo_rounding(mrb_state *mrb, mrb_value num, double (*func)(double))
  *  call-seq:
  *     float.floor([ndigits])  ->  integer or float
  *
- *  Returns the largest number less than or equal to +float+ with
- *  a precision of +ndigits+ decimal digits (default: 0).
+ *  Returns the largest number less than or equal to `float` with
+ *  a precision of `ndigits` decimal digits (default: 0).
  *
  *  When the precision is negative, the returned value is an integer
- *  with at least <code>ndigits.abs</code> trailing zeros.
+ *  with at least `ndigits.abs` trailing zeros.
  *
- *  Returns a floating-point number when +ndigits+ is positive,
+ *  Returns a floating-point number when `ndigits` is positive,
  *  otherwise returns an integer.
  *
  *     1.2.floor      #=> 1
@@ -870,13 +870,13 @@ flo_floor(mrb_state *mrb, mrb_value num)
  *  call-seq:
  *     float.ceil([ndigits])  ->  integer or float
  *
- *  Returns the smallest number greater than or equal to +float+ with
- *  a precision of +ndigits+ decimal digits (default: 0).
+ *  Returns the smallest number greater than or equal to `float` with
+ *  a precision of `ndigits` decimal digits (default: 0).
  *
  *  When the precision is negative, the returned value is an integer
- *  with at least <code>ndigits.abs</code> trailing zeros.
+ *  with at least `ndigits.abs` trailing zeros.
  *
- *  Returns a floating-point number when +ndigits+ is positive,
+ *  Returns a floating-point number when `ndigits` is positive,
  *  otherwise returns an integer.
  *
  *     1.2.ceil      #=> 2
@@ -916,7 +916,7 @@ flo_ceil(mrb_state *mrb, mrb_value num)
  *  call-seq:
  *     flt.round([ndigits])  ->  integer or float
  *
- *  Rounds <i>flt</i> to a given precision in decimal digits (default 0 digits).
+ *  Rounds *flt* to a given precision in decimal digits (default 0 digits).
  *  Precision may be negative.  Returns a floating-point number when ndigits
  *  is more than zero.
  *
@@ -947,7 +947,6 @@ flo_round(mrb_state *mrb, mrb_value num)
 {
   double number, f;
   mrb_int ndigits = 0;
-  mrb_int i;
 
   mrb_get_args(mrb, "|i", &ndigits);
   number = mrb_float(num);
@@ -959,7 +958,8 @@ flo_round(mrb_state *mrb, mrb_value num)
 
   f = 1.0;
   if (ndigits < -DBL_DIG-2) return mrb_fixnum_value(0);
-  i = ndigits >= 0 ? ndigits : -ndigits;
+
+  mrb_int i = ndigits >= 0 ? ndigits : -ndigits;
   if (ndigits > DBL_DIG+2) return num;
   while  (--i >= 0)
     f = f*10.0;
@@ -1022,7 +1022,7 @@ flo_to_i(mrb_state *mrb, mrb_value num)
  *     flt.to_i      ->  integer
  *     flt.truncate  ->  integer
  *
- *  Returns <i>flt</i> truncated to an <code>Integer</code>.
+ *  Returns *flt* truncated to an `Integer`.
  */
 
 static mrb_value
@@ -1051,7 +1051,7 @@ flo_abs(mrb_state *mrb, mrb_value num)
 /*
  * Document-class: Integer
  *
- *  <code>Integer</code> is hold whole numbers.
+ *  `Integer` is hold whole numbers.
  *
  */
 
@@ -1064,7 +1064,7 @@ flo_abs(mrb_state *mrb, mrb_value num)
  *     int.to_i      ->  integer
  *     int.to_int    ->  integer
  *
- *  As <i>int</i> is already an <code>Integer</code>, all these
+ *  As *int* is already an `Integer`, all these
  *  methods simply return the receiver.
  */
 
@@ -1087,9 +1087,8 @@ flo_abs(mrb_state *mrb, mrb_value num)
 mrb_value
 mrb_int_mul(mrb_state *mrb, mrb_value x, mrb_value y)
 {
-  mrb_int a;
+  mrb_int a = mrb_integer(x);
 
-  a = mrb_integer(x);
   if (mrb_integer_p(y)) {
     mrb_int b, c;
 
@@ -1142,7 +1141,7 @@ mrb_int_mul(mrb_state *mrb, mrb_value x, mrb_value y)
  *   int * numeric  ->  numeric_result
  *
  * Performs multiplication: the class of the resulting object depends on
- * the class of <code>numeric</code> and on the magnitude of the
+ * the class of `numeric` and on the magnitude of the
  * result.
  */
 
@@ -1186,8 +1185,8 @@ intdivmod(mrb_state *mrb, mrb_int x, mrb_int y, mrb_int *divp, mrb_int *modp)
  *  call-seq:
  *    int % num        ->  num
  *
- *  Returns <code>int</code> modulo <code>other</code>.
- *  See <code>numeric.divmod</code> for more information.
+ *  Returns `int` modulo `other`.
+ *  See `numeric.divmod` for more information.
  */
 
 static mrb_value
@@ -1234,7 +1233,7 @@ static mrb_value flo_divmod(mrb_state *mrb, mrb_value x);
  *  call-seq:
  *     int.divmod(numeric)  ->  array
  *
- *  See <code>Numeric#divmod</code>.
+ *  See `Numeric#divmod`.
  */
 static mrb_value
 int_divmod(mrb_state *mrb, mrb_value x)
@@ -1264,7 +1263,7 @@ int_divmod(mrb_state *mrb, mrb_value x)
 #ifdef MRB_NO_FLOAT
   mrb_raise(mrb, E_TYPE_ERROR, "non integer divmod");
 #else
-  return flo_divmod(mrb, x);
+  return flo_divmod(mrb, mrb_ensure_float_type(mrb, x));
 #endif
 }
 
@@ -1291,7 +1290,7 @@ flo_divmod(mrb_state *mrb, mrb_value x)
  * call-seq:
  *   int == other  ->  true or false
  *
- * Return <code>true</code> if <code>int</code> equals <code>other</code>
+ * Return `true` if `int` equals `other`
  * numerically.
  *
  *   1 == 2      #=> false
@@ -1585,7 +1584,7 @@ prepare_int_rounding(mrb_state *mrb, mrb_value x)
  *  Returns self.
  *
  *  When the precision (ndigits) is negative, the returned value is an integer
- *  with at least <code>ndigits.abs</code> trailing zeros.
+ *  with at least `ndigits.abs` trailing zeros.
  */
 static mrb_value
 int_ceil(mrb_state *mrb, mrb_value x)
@@ -1627,7 +1626,7 @@ int_ceil(mrb_state *mrb, mrb_value x)
  *  Returns self.
  *
  *  When the precision (ndigits) is negative, the returned value is an integer
- *  with at least <code>ndigits.abs</code> trailing zeros.
+ *  with at least `ndigits.abs` trailing zeros.
  */
 static mrb_value
 int_floor(mrb_state *mrb, mrb_value x)
@@ -1668,7 +1667,7 @@ int_floor(mrb_state *mrb, mrb_value x)
  *  Returns self.
  *
  *  When the precision (ndigits) is negative, the returned value is an integer
- *  with at least <code>ndigits.abs</code> trailing zeros.
+ *  with at least `ndigits.abs` trailing zeros.
  */
 static mrb_value
 int_round(mrb_state *mrb, mrb_value x)
@@ -1732,7 +1731,7 @@ int_round(mrb_state *mrb, mrb_value x)
  *  Returns self.
  *
  *  When the precision (ndigits) is negative, the returned value is an integer
- *  with at least <code>ndigits.abs</code> trailing zeros.
+ *  with at least `ndigits.abs` trailing zeros.
  */
 static mrb_value
 int_truncate(mrb_state *mrb, mrb_value x)
@@ -1760,7 +1759,7 @@ int_truncate(mrb_state *mrb, mrb_value x)
  *  call-seq:
  *     int.to_f  ->  float
  *
- *  Converts <i>int</i> to a <code>Float</code>.
+ *  Converts *int* to a `Float`.
  *
  */
 
@@ -1818,9 +1817,8 @@ mrb_float_to_integer(mrb_state *mrb, mrb_value x)
 mrb_value
 mrb_int_add(mrb_state *mrb, mrb_value x, mrb_value y)
 {
-  mrb_int a;
+  mrb_int a = mrb_integer(x);
 
-  a = mrb_integer(x);
   if (mrb_integer_p(y)) {
     mrb_int b, c;
 
@@ -1865,7 +1863,7 @@ mrb_int_add(mrb_state *mrb, mrb_value x, mrb_value y)
  *   int + numeric  ->  numeric_result
  *
  * Performs addition: the class of the resulting object depends on
- * the class of <code>numeric</code> and on the magnitude of the
+ * the class of `numeric` and on the magnitude of the
  * result.
  */
 static mrb_value
@@ -1900,9 +1898,8 @@ int_add(mrb_state *mrb, mrb_value self)
 mrb_value
 mrb_int_sub(mrb_state *mrb, mrb_value x, mrb_value y)
 {
-  mrb_int a;
+  mrb_int a = mrb_integer(x);
 
-  a = mrb_integer(x);
   if (mrb_integer_p(y)) {
     mrb_int b, c;
 
@@ -1945,7 +1942,7 @@ mrb_int_sub(mrb_state *mrb, mrb_value x, mrb_value y)
  *   int - numeric  ->  numeric
  *
  * Performs subtraction: the class of the resulting object depends on
- * the class of <code>numeric</code> and on the magnitude of the
+ * the class of `numeric` and on the magnitude of the
  * result.
  */
 static mrb_value
@@ -2039,8 +2036,8 @@ mrb_integer_to_str(mrb_state *mrb, mrb_value x, mrb_int base)
  *  call-seq:
  *     int.to_s(base=10)  ->  string
  *
- *  Returns a string containing the representation of <i>int</i> radix
- *  <i>base</i> (between 2 and 36).
+ *  Returns a string containing the representation of *int* radix
+ *  *base* (between 2 and 36).
  *
  *     12345.to_s       #=> "12345"
  *     12345.to_s(2)    #=> "11000000111001"
@@ -2096,8 +2093,21 @@ cmpnum(mrb_state *mrb, mrb_value v1, mrb_value v2)
       else if (x < y) return -1;
       return 0;
     }
+#ifdef MRB_USE_BIGINT
+    if (mrb_bigint_p(v2)) {
+      return -mrb_bint_cmp(mrb, v2, v1);
+    }
+#endif
     x = (mrb_float)mrb_integer(v1);
   }
+#ifdef MRB_USE_BIGINT
+  else if (mrb_bigint_p(v1)) {
+    if (mrb_integer_p(v2) || mrb_bigint_p(v2)) {
+      return mrb_bint_cmp(mrb, v1, v2);
+    }
+    x = mrb_as_float(mrb, v1);
+  }
+#endif
   else {
     x = mrb_as_float(mrb, v1);
   }
@@ -2160,18 +2170,17 @@ int_hash(mrb_state *mrb, mrb_value self)
  *             <  => -1
  *             =  =>  0
  *             >  => +1
- *  Comparison---Returns -1, 0, or +1 depending on whether <i>int</i> is
- *  less than, equal to, or greater than <i>numeric</i>. This is the
- *  basis for the tests in <code>Comparable</code>. When the operands are
+ *  Comparison---Returns -1, 0, or +1 depending on whether *int* is
+ *  less than, equal to, or greater than *numeric*. This is the
+ *  basis for the tests in `Comparable`. When the operands are
  *  not comparable, it returns nil instead of raising an exception.
  */
 static mrb_value
 num_cmp(mrb_state *mrb, mrb_value self)
 {
   mrb_value other = mrb_get_arg1(mrb);
-  mrb_int n;
+  mrb_int n = cmpnum(mrb, self, other);
 
-  n = cmpnum(mrb, self, other);
   if (n == -2) return mrb_nil_value();
   return mrb_fixnum_value(n);
 }
@@ -2186,9 +2195,8 @@ static mrb_value
 num_lt(mrb_state *mrb, mrb_value self)
 {
   mrb_value other = mrb_get_arg1(mrb);
-  mrb_int n;
+  mrb_int n = cmpnum(mrb, self, other);
 
-  n = cmpnum(mrb, self, other);
   if (n == -2) cmperr(mrb, self, other);
   if (n < 0) return mrb_true_value();
   return mrb_false_value();
@@ -2198,9 +2206,8 @@ static mrb_value
 num_le(mrb_state *mrb, mrb_value self)
 {
   mrb_value other = mrb_get_arg1(mrb);
-  mrb_int n;
+  mrb_int n = cmpnum(mrb, self, other);
 
-  n = cmpnum(mrb, self, other);
   if (n == -2) cmperr(mrb, self, other);
   if (n <= 0) return mrb_true_value();
   return mrb_false_value();
@@ -2210,9 +2217,8 @@ static mrb_value
 num_gt(mrb_state *mrb, mrb_value self)
 {
   mrb_value other = mrb_get_arg1(mrb);
-  mrb_int n;
+  mrb_int n = cmpnum(mrb, self, other);
 
-  n = cmpnum(mrb, self, other);
   if (n == -2) cmperr(mrb, self, other);
   if (n > 0) return mrb_true_value();
   return mrb_false_value();
@@ -2222,9 +2228,8 @@ static mrb_value
 num_ge(mrb_state *mrb, mrb_value self)
 {
   mrb_value other = mrb_get_arg1(mrb);
-  mrb_int n;
+  mrb_int n = cmpnum(mrb, self, other);
 
-  n = cmpnum(mrb, self, other);
   if (n == -2) cmperr(mrb, self, other);
   if (n >= 0) return mrb_true_value();
   return mrb_false_value();
@@ -2294,6 +2299,87 @@ flo_hash(mrb_state *mrb, mrb_value flo)
 #endif
 
 /* ------------------------------------------------------------------------*/
+static const mrb_mt_entry numeric_rom_entries[] = {
+  MRB_MT_ENTRY(num_finite_p,   MRB_SYM_Q(finite), MRB_ARGS_NONE()),
+  MRB_MT_ENTRY(num_infinite_p, MRB_SYM_Q(infinite), MRB_ARGS_NONE()),
+  MRB_MT_ENTRY(num_eql,        MRB_SYM_Q(eql), MRB_ARGS_REQ(1)),  /* 15.2.8.3.16 */
+#ifndef MRB_NO_FLOAT
+  MRB_MT_ENTRY(num_fdiv, MRB_SYM(fdiv), MRB_ARGS_REQ(1)),
+#endif
+};
+
+static const mrb_mt_entry integer_rom_entries[] = {
+  MRB_MT_ENTRY(int_pow,              MRB_OPSYM(pow),    MRB_ARGS_REQ(1)),
+  MRB_MT_ENTRY(num_cmp,              MRB_OPSYM(cmp),    MRB_ARGS_REQ(1)),  /* 15.2.8.3.1  */
+  MRB_MT_ENTRY(num_lt,               MRB_OPSYM(lt),     MRB_ARGS_REQ(1)),
+  MRB_MT_ENTRY(num_le,               MRB_OPSYM(le),     MRB_ARGS_REQ(1)),
+  MRB_MT_ENTRY(num_gt,               MRB_OPSYM(gt),     MRB_ARGS_REQ(1)),
+  MRB_MT_ENTRY(num_ge,               MRB_OPSYM(ge),     MRB_ARGS_REQ(1)),
+  MRB_MT_ENTRY(mrb_obj_itself,       MRB_SYM(to_i),                MRB_ARGS_NONE()),  /* 15.2.8.3.24 */
+  MRB_MT_ENTRY(mrb_obj_itself,       MRB_SYM(to_int),              MRB_ARGS_NONE()),
+  MRB_MT_ENTRY(int_add,              MRB_OPSYM(add),    MRB_ARGS_REQ(1)),  /* 15.2.8.3.1 */
+  MRB_MT_ENTRY(int_sub,              MRB_OPSYM(sub),    MRB_ARGS_REQ(1)),  /* 15.2.8.3.2 */
+  MRB_MT_ENTRY(int_mul,              MRB_OPSYM(mul),    MRB_ARGS_REQ(1)),  /* 15.2.8.3.3 */
+  MRB_MT_ENTRY(int_mod,              MRB_OPSYM(mod),    MRB_ARGS_REQ(1)),  /* 15.2.8.3.5 */
+  MRB_MT_ENTRY(int_div,              MRB_OPSYM(div),    MRB_ARGS_REQ(1)),  /* 15.2.8.3.6 */
+  MRB_MT_ENTRY(int_quo,              MRB_SYM(quo),      MRB_ARGS_REQ(1)),  /* 15.2.7.4.5(x) */
+  MRB_MT_ENTRY(int_idiv,             MRB_SYM(div),      MRB_ARGS_REQ(1)),
+  MRB_MT_ENTRY(int_equal,            MRB_OPSYM(eq),     MRB_ARGS_REQ(1)),  /* 15.2.8.3.7 */
+  MRB_MT_ENTRY(int_rev,              MRB_OPSYM(neg),               MRB_ARGS_NONE()),  /* 15.2.8.3.8 */
+  MRB_MT_ENTRY(int_and,              MRB_OPSYM(and),    MRB_ARGS_REQ(1)),  /* 15.2.8.3.9 */
+  MRB_MT_ENTRY(int_or,               MRB_OPSYM(or),     MRB_ARGS_REQ(1)),  /* 15.2.8.3.10 */
+  MRB_MT_ENTRY(int_xor,              MRB_OPSYM(xor),    MRB_ARGS_REQ(1)),  /* 15.2.8.3.11 */
+  MRB_MT_ENTRY(int_lshift,           MRB_OPSYM(lshift), MRB_ARGS_REQ(1)),  /* 15.2.8.3.12 */
+  MRB_MT_ENTRY(int_rshift,           MRB_OPSYM(rshift), MRB_ARGS_REQ(1)),  /* 15.2.8.3.13 */
+  MRB_MT_ENTRY(int_ceil,             MRB_SYM(ceil),     MRB_ARGS_OPT(1)),  /* 15.2.8.3.14 */
+  MRB_MT_ENTRY(int_floor,            MRB_SYM(floor),    MRB_ARGS_OPT(1)),  /* 15.2.8.3.17 */
+  MRB_MT_ENTRY(int_round,            MRB_SYM(round),    MRB_ARGS_OPT(1)),  /* 15.2.8.3.20 */
+  MRB_MT_ENTRY(int_truncate,         MRB_SYM(truncate), MRB_ARGS_OPT(1)),  /* 15.2.8.3.26 */
+  MRB_MT_ENTRY(int_hash,             MRB_SYM(hash),                MRB_ARGS_NONE()),  /* 15.2.8.3.18 */
+  MRB_MT_ENTRY(int_to_s,             MRB_SYM(to_s),     MRB_ARGS_OPT(1)),  /* 15.2.8.3.25 */
+  MRB_MT_ENTRY(int_to_s,             MRB_SYM(inspect),  MRB_ARGS_OPT(1)),
+  MRB_MT_ENTRY(int_divmod,           MRB_SYM(divmod),   MRB_ARGS_REQ(1)),  /* 15.2.8.3.30(x) */
+  MRB_MT_ENTRY(coerce_step_counter,  MRB_SYM(__coerce_step_counter), MRB_ARGS_REQ(1)),
+#ifndef MRB_NO_FLOAT
+  MRB_MT_ENTRY(int_fdiv, MRB_SYM(fdiv), MRB_ARGS_REQ(1)),
+  MRB_MT_ENTRY(int_to_f, MRB_SYM(to_f), MRB_ARGS_NONE()),  /* 15.2.8.3.23 */
+#endif
+};
+
+#ifndef MRB_NO_FLOAT
+static const mrb_mt_entry float_rom_entries[] = {
+  MRB_MT_ENTRY(flo_pow,        MRB_OPSYM(pow), MRB_ARGS_REQ(1)),
+  MRB_MT_ENTRY(flo_div,        MRB_OPSYM(div), MRB_ARGS_REQ(1)),  /* 15.2.9.3.6 */
+  MRB_MT_ENTRY(flo_div,        MRB_SYM(quo), MRB_ARGS_REQ(1)),  /* 15.2.7.4.5(x) */
+  MRB_MT_ENTRY(flo_div,        MRB_SYM(fdiv), MRB_ARGS_REQ(1)),
+  MRB_MT_ENTRY(flo_idiv,       MRB_SYM(div), MRB_ARGS_REQ(1)),
+  MRB_MT_ENTRY(flo_add,        MRB_OPSYM(add), MRB_ARGS_REQ(1)),  /* 15.2.9.3.3 */
+  MRB_MT_ENTRY(flo_sub,        MRB_OPSYM(sub), MRB_ARGS_REQ(1)),  /* 15.2.9.3.4 */
+  MRB_MT_ENTRY(flo_mul,        MRB_OPSYM(mul), MRB_ARGS_REQ(1)),  /* 15.2.9.3.5 */
+  MRB_MT_ENTRY(flo_mod,        MRB_OPSYM(mod), MRB_ARGS_REQ(1)),  /* 15.2.9.3.7 */
+  MRB_MT_ENTRY(num_cmp,        MRB_OPSYM(cmp), MRB_ARGS_REQ(1)),  /* 15.2.8.3.1  */
+  MRB_MT_ENTRY(num_lt,         MRB_OPSYM(lt), MRB_ARGS_REQ(1)),
+  MRB_MT_ENTRY(num_le,         MRB_OPSYM(le), MRB_ARGS_REQ(1)),
+  MRB_MT_ENTRY(num_gt,         MRB_OPSYM(gt), MRB_ARGS_REQ(1)),
+  MRB_MT_ENTRY(num_ge,         MRB_OPSYM(ge), MRB_ARGS_REQ(1)),
+  MRB_MT_ENTRY(flo_eq,         MRB_OPSYM(eq), MRB_ARGS_REQ(1)),  /* 15.2.9.3.2  */
+  MRB_MT_ENTRY(flo_ceil,       MRB_SYM(ceil), MRB_ARGS_OPT(1)),  /* 15.2.9.3.8  */
+  MRB_MT_ENTRY(flo_finite_p,   MRB_SYM_Q(finite), MRB_ARGS_NONE()),  /* 15.2.9.3.9  */
+  MRB_MT_ENTRY(flo_floor,      MRB_SYM(floor), MRB_ARGS_OPT(1)),  /* 15.2.9.3.10 */
+  MRB_MT_ENTRY(flo_infinite_p, MRB_SYM_Q(infinite), MRB_ARGS_NONE()),  /* 15.2.9.3.11 */
+  MRB_MT_ENTRY(flo_round,      MRB_SYM(round), MRB_ARGS_OPT(1)),  /* 15.2.9.3.12 */
+  MRB_MT_ENTRY(mrb_obj_itself, MRB_SYM(to_f),     MRB_ARGS_NONE()),  /* 15.2.9.3.13 */
+  MRB_MT_ENTRY(flo_to_i,       MRB_SYM(to_i),     MRB_ARGS_NONE()),  /* 15.2.9.3.14 */
+  MRB_MT_ENTRY(flo_truncate,   MRB_SYM(truncate), MRB_ARGS_OPT(1)),  /* 15.2.9.3.15 */
+  MRB_MT_ENTRY(flo_divmod,     MRB_SYM(divmod), MRB_ARGS_REQ(1)),
+  MRB_MT_ENTRY(flo_to_s,       MRB_SYM(to_s),     MRB_ARGS_NONE()),  /* 15.2.9.3.16(x) */
+  MRB_MT_ENTRY(flo_to_s,       MRB_SYM(inspect),  MRB_ARGS_NONE()),
+  MRB_MT_ENTRY(flo_nan_p,      MRB_SYM_Q(nan),    MRB_ARGS_NONE()),
+  MRB_MT_ENTRY(flo_abs,        MRB_SYM(abs),      MRB_ARGS_NONE()),  /* 15.2.7.4.3 */
+  MRB_MT_ENTRY(flo_hash,       MRB_SYM(hash),     MRB_ARGS_NONE()),
+};
+#endif /* !MRB_NO_FLOAT */
+
 void
 mrb_init_numeric(mrb_state *mrb)
 {
@@ -2304,57 +2390,14 @@ mrb_init_numeric(mrb_state *mrb)
 
   /* Numeric Class */
   numeric = mrb_define_class_id(mrb, MRB_SYM(Numeric), mrb->object_class);                  /* 15.2.7 */
-  mrb_define_method_id(mrb, numeric, MRB_SYM_Q(finite),  num_finite_p,    MRB_ARGS_NONE());
-  mrb_define_method_id(mrb, numeric, MRB_SYM_Q(infinite),num_infinite_p,  MRB_ARGS_NONE());
-  mrb_define_method_id(mrb, numeric, MRB_SYM_Q(eql),     num_eql,         MRB_ARGS_REQ(1)); /* 15.2.8.3.16 */
-#ifndef MRB_NO_FLOAT
-  mrb_define_method_id(mrb, numeric, MRB_SYM(fdiv),      num_fdiv,        MRB_ARGS_REQ(1));
-#endif
+  MRB_MT_INIT_ROM(mrb, numeric, numeric_rom_entries);
 
   /* Integer Class */
   mrb->integer_class = integer = mrb_define_class_id(mrb, MRB_SYM(Integer),  numeric);     /* 15.2.8 */
   MRB_SET_INSTANCE_TT(integer, MRB_TT_INTEGER);
   MRB_UNDEF_ALLOCATOR(integer);
   mrb_undef_class_method_id(mrb, integer, MRB_SYM(new));
-  mrb_define_method_id(mrb, integer, MRB_OPSYM(pow),    int_pow,         MRB_ARGS_REQ(1));
-  mrb_define_method_id(mrb, integer, MRB_OPSYM(cmp),    num_cmp,         MRB_ARGS_REQ(1)); /* 15.2.8.3.1  */
-  mrb_define_method_id(mrb, integer, MRB_OPSYM(lt),     num_lt,          MRB_ARGS_REQ(1));
-  mrb_define_method_id(mrb, integer, MRB_OPSYM(le),     num_le,          MRB_ARGS_REQ(1));
-  mrb_define_method_id(mrb, integer, MRB_OPSYM(gt),     num_gt,          MRB_ARGS_REQ(1));
-  mrb_define_method_id(mrb, integer, MRB_OPSYM(ge),     num_ge,          MRB_ARGS_REQ(1));
-
-  mrb_define_method_id(mrb, integer, MRB_SYM(to_i),     mrb_obj_itself,  MRB_ARGS_NONE()); /* 15.2.8.3.24 */
-  mrb_define_method_id(mrb, integer, MRB_SYM(to_int),   mrb_obj_itself,  MRB_ARGS_NONE());
-
-  mrb_define_method_id(mrb, integer, MRB_OPSYM(add),    int_add,         MRB_ARGS_REQ(1)); /* 15.2.8.3.1 */
-  mrb_define_method_id(mrb, integer, MRB_OPSYM(sub),    int_sub,         MRB_ARGS_REQ(1)); /* 15.2.8.3.2 */
-  mrb_define_method_id(mrb, integer, MRB_OPSYM(mul),    int_mul,         MRB_ARGS_REQ(1)); /* 15.2.8.3.3 */
-  mrb_define_method_id(mrb, integer, MRB_OPSYM(mod),    int_mod,         MRB_ARGS_REQ(1)); /* 15.2.8.3.5 */
-  mrb_define_method_id(mrb, integer, MRB_OPSYM(div),    int_div,         MRB_ARGS_REQ(1)); /* 15.2.8.3.6 */
-  mrb_define_method_id(mrb, integer, MRB_SYM(quo),      int_quo,         MRB_ARGS_REQ(1)); /* 15.2.7.4.5(x) */
-  mrb_define_method_id(mrb, integer, MRB_SYM(div),      int_idiv,        MRB_ARGS_REQ(1));
-#ifndef MRB_NO_FLOAT
-  mrb_define_method_id(mrb, integer, MRB_SYM(fdiv),     int_fdiv,        MRB_ARGS_REQ(1));
-#endif
-  mrb_define_method_id(mrb, integer, MRB_OPSYM(eq),     int_equal,       MRB_ARGS_REQ(1)); /* 15.2.8.3.7 */
-  mrb_define_method_id(mrb, integer, MRB_OPSYM(neg),    int_rev,         MRB_ARGS_NONE()); /* 15.2.8.3.8 */
-  mrb_define_method_id(mrb, integer, MRB_OPSYM(and),    int_and,         MRB_ARGS_REQ(1)); /* 15.2.8.3.9 */
-  mrb_define_method_id(mrb, integer, MRB_OPSYM(or),     int_or,          MRB_ARGS_REQ(1)); /* 15.2.8.3.10 */
-  mrb_define_method_id(mrb, integer, MRB_OPSYM(xor),    int_xor,         MRB_ARGS_REQ(1)); /* 15.2.8.3.11 */
-  mrb_define_method_id(mrb, integer, MRB_OPSYM(lshift), int_lshift,      MRB_ARGS_REQ(1)); /* 15.2.8.3.12 */
-  mrb_define_method_id(mrb, integer, MRB_OPSYM(rshift), int_rshift,      MRB_ARGS_REQ(1)); /* 15.2.8.3.13 */
-  mrb_define_method_id(mrb, integer, MRB_SYM(ceil),     int_ceil,        MRB_ARGS_OPT(1)); /* 15.2.8.3.14 */
-  mrb_define_method_id(mrb, integer, MRB_SYM(floor),    int_floor,       MRB_ARGS_OPT(1)); /* 15.2.8.3.17 */
-  mrb_define_method_id(mrb, integer, MRB_SYM(round),    int_round,       MRB_ARGS_OPT(1)); /* 15.2.8.3.20 */
-  mrb_define_method_id(mrb, integer, MRB_SYM(truncate), int_truncate,    MRB_ARGS_OPT(1)); /* 15.2.8.3.26 */
-  mrb_define_method_id(mrb, integer, MRB_SYM(hash),     int_hash,        MRB_ARGS_NONE()); /* 15.2.8.3.18 */
-#ifndef MRB_NO_FLOAT
-  mrb_define_method_id(mrb, integer, MRB_SYM(to_f),     int_to_f,        MRB_ARGS_NONE()); /* 15.2.8.3.23 */
-#endif
-  mrb_define_method_id(mrb, integer, MRB_SYM(to_s),     int_to_s,        MRB_ARGS_OPT(1)); /* 15.2.8.3.25 */
-  mrb_define_method_id(mrb, integer, MRB_SYM(inspect),  int_to_s,        MRB_ARGS_OPT(1));
-  mrb_define_method_id(mrb, integer, MRB_SYM(divmod),   int_divmod,      MRB_ARGS_REQ(1)); /* 15.2.8.3.30(x) */
-  mrb_define_method_id(mrb, integer, MRB_SYM(__coerce_step_counter), coerce_step_counter, MRB_ARGS_REQ(1));
+  MRB_MT_INIT_ROM(mrb, integer, integer_rom_entries);
 
   /* Fixnum Class for compatibility */
   mrb_define_const_id(mrb, mrb->object_class, MRB_SYM(Fixnum), mrb_obj_value(integer));
@@ -2365,36 +2408,7 @@ mrb_init_numeric(mrb_state *mrb)
   MRB_SET_INSTANCE_TT(fl, MRB_TT_FLOAT);
   MRB_UNDEF_ALLOCATOR(fl);
   mrb_undef_class_method(mrb,  fl, "new");
-  mrb_define_method_id(mrb, fl,      MRB_OPSYM(pow),     flo_pow,        MRB_ARGS_REQ(1));
-  mrb_define_method_id(mrb, fl,      MRB_OPSYM(div),     flo_div,        MRB_ARGS_REQ(1)); /* 15.2.9.3.6 */
-  mrb_define_method_id(mrb, fl,      MRB_SYM(quo),       flo_div,        MRB_ARGS_REQ(1)); /* 15.2.7.4.5(x) */
-  mrb_define_method_id(mrb, fl,      MRB_SYM(fdiv),      flo_div,        MRB_ARGS_REQ(1));
-  mrb_define_method_id(mrb, fl,      MRB_SYM(div),       flo_idiv,       MRB_ARGS_REQ(1));
-  mrb_define_method_id(mrb, fl,      MRB_OPSYM(add),     flo_add,        MRB_ARGS_REQ(1)); /* 15.2.9.3.3 */
-  mrb_define_method_id(mrb, fl,      MRB_OPSYM(sub),     flo_sub,        MRB_ARGS_REQ(1)); /* 15.2.9.3.4 */
-  mrb_define_method_id(mrb, fl,      MRB_OPSYM(mul),     flo_mul,        MRB_ARGS_REQ(1)); /* 15.2.9.3.5 */
-  mrb_define_method_id(mrb, fl,      MRB_OPSYM(mod),     flo_mod,        MRB_ARGS_REQ(1)); /* 15.2.9.3.7 */
-  mrb_define_method_id(mrb, fl,      MRB_OPSYM(cmp),     num_cmp,        MRB_ARGS_REQ(1)); /* 15.2.9.3.1 */
-  mrb_define_method_id(mrb, fl,      MRB_OPSYM(lt),      num_lt,         MRB_ARGS_REQ(1));
-  mrb_define_method_id(mrb, fl,      MRB_OPSYM(le),      num_le,         MRB_ARGS_REQ(1));
-  mrb_define_method_id(mrb, fl,      MRB_OPSYM(gt),      num_gt,         MRB_ARGS_REQ(1));
-  mrb_define_method_id(mrb, fl,      MRB_OPSYM(ge),      num_ge,         MRB_ARGS_REQ(1));
-  mrb_define_method_id(mrb, fl,      MRB_OPSYM(eq),      flo_eq,         MRB_ARGS_REQ(1)); /* 15.2.9.3.2  */
-  mrb_define_method_id(mrb, fl,      MRB_SYM(ceil),      flo_ceil,       MRB_ARGS_OPT(1)); /* 15.2.9.3.8  */
-  mrb_define_method_id(mrb, fl,      MRB_SYM_Q(finite),  flo_finite_p,   MRB_ARGS_NONE()); /* 15.2.9.3.9  */
-  mrb_define_method_id(mrb, fl,      MRB_SYM(floor),     flo_floor,      MRB_ARGS_OPT(1)); /* 15.2.9.3.10 */
-  mrb_define_method_id(mrb, fl,      MRB_SYM_Q(infinite),flo_infinite_p, MRB_ARGS_NONE()); /* 15.2.9.3.11 */
-  mrb_define_method_id(mrb, fl,      MRB_SYM(round),     flo_round,      MRB_ARGS_OPT(1)); /* 15.2.9.3.12 */
-  mrb_define_method_id(mrb, fl,      MRB_SYM(to_f),      mrb_obj_itself, MRB_ARGS_NONE()); /* 15.2.9.3.13 */
-  mrb_define_method_id(mrb, fl,      MRB_SYM(to_i),      flo_to_i,       MRB_ARGS_NONE()); /* 15.2.9.3.14 */
-  mrb_define_method_id(mrb, fl,      MRB_SYM(truncate),  flo_truncate,   MRB_ARGS_OPT(1)); /* 15.2.9.3.15 */
-  mrb_define_method_id(mrb, fl,      MRB_SYM(divmod),    flo_divmod,     MRB_ARGS_REQ(1));
-
-  mrb_define_method_id(mrb, fl,      MRB_SYM(to_s),      flo_to_s,       MRB_ARGS_NONE()); /* 15.2.9.3.16(x) */
-  mrb_define_method_id(mrb, fl,      MRB_SYM(inspect),   flo_to_s,       MRB_ARGS_NONE());
-  mrb_define_method_id(mrb, fl,      MRB_SYM_Q(nan),     flo_nan_p,      MRB_ARGS_NONE());
-  mrb_define_method_id(mrb, fl,      MRB_SYM(abs),       flo_abs,        MRB_ARGS_NONE()); /* 15.2.7.4.3 */
-  mrb_define_method_id(mrb, fl,      MRB_SYM(hash),      flo_hash,       MRB_ARGS_NONE());
+  MRB_MT_INIT_ROM(mrb, fl, float_rom_entries);
 
 #ifdef INFINITY
   mrb_define_const_id(mrb, fl, MRB_SYM(INFINITY), mrb_float_value(mrb, INFINITY));

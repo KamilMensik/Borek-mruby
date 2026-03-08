@@ -38,7 +38,7 @@ static const mrb_irep call_irep = {
 
 mrb_alignas(8)
 static const struct RProc call_proc = {
-  NULL, NULL, MRB_TT_PROC, MRB_GC_RED, MRB_OBJ_IS_FROZEN, MRB_PROC_SCOPE | MRB_PROC_STRICT,
+  NULL, MRB_TT_PROC, MRB_GC_RED, MRB_OBJ_IS_FROZEN, MRB_PROC_SCOPE | MRB_PROC_STRICT,
   { &call_irep }, NULL, { NULL }
 };
 
@@ -294,14 +294,12 @@ static mrb_value
 mrb_proc_s_new(mrb_state *mrb, mrb_value proc_class)
 {
   mrb_value blk;
-  mrb_value proc;
-  struct RProc *p;
 
   /* Calling Proc.new without a block is not implemented yet */
   mrb_get_args(mrb, "&!", &blk);
-  p = MRB_OBJ_ALLOC(mrb, MRB_TT_PROC, mrb_class_ptr(proc_class));
+  struct RProc *p = MRB_OBJ_ALLOC(mrb, MRB_TT_PROC, mrb_class_ptr(proc_class));
   mrb_proc_copy(mrb, p, mrb_proc_ptr(blk));
-  proc = mrb_obj_value(p);
+  mrb_value proc = mrb_obj_value(p);
   mrb_funcall_with_block(mrb, proc, MRB_SYM(initialize), 0, NULL, proc);
   if (!MRB_PROC_STRICT_P(p) &&
       mrb->c->ci > mrb->c->cibase && MRB_PROC_ENV(p) == mrb->c->ci[-1].u.env) {
@@ -342,12 +340,25 @@ mrb_proc_eql(mrb_state *mrb, mrb_value self, mrb_value other)
 
   const struct RProc *p1 = mrb_proc_ptr(self);
   const struct RProc *p2 = mrb_proc_ptr(other);
+
+  /* Follow alias chains to get the real procs */
+  while (p1 && MRB_PROC_ALIAS_P(p1)) {
+    p1 = p1->upper;
+  }
+  while (p2 && MRB_PROC_ALIAS_P(p2)) {
+    p2 = p2->upper;
+  }
+
+  /* If either pointer is NULL after following aliases, they can't be equal */
+  if (!p1 || !p2) return FALSE;
+
   if (MRB_PROC_CFUNC_P(p1)) {
-    if (!MRB_PROC_CFUNC_P(p1)) return FALSE;
+    if (!MRB_PROC_CFUNC_P(p2)) return FALSE;
     if (p1->body.func != p2->body.func) return FALSE;
   }
   else if (MRB_PROC_CFUNC_P(p2)) return FALSE;
   else if (p1->body.irep != p2->body.irep) return FALSE;
+  else if (MRB_PROC_ENV(p1) != MRB_PROC_ENV(p2)) return FALSE;
   return TRUE;
 }
 
@@ -361,7 +372,7 @@ static mrb_value
 proc_hash(mrb_state *mrb, mrb_value self)
 {
   const struct RProc *p = mrb_proc_ptr(self);
-  return mrb_int_value(mrb, (mrb_int)(((intptr_t)p->body.irep)^MRB_TT_PROC));
+  return mrb_int_value(mrb, (mrb_int)((intptr_t)p->body.irep^((intptr_t)MRB_PROC_ENV(p)>>2)^MRB_TT_PROC));
 }
 
 /* 15.3.1.2.6  */
@@ -370,21 +381,20 @@ proc_hash(mrb_state *mrb, mrb_value self)
  * call-seq:
  *   lambda { |...| block }  -> a_proc
  *
- * Equivalent to <code>Proc.new</code>, except the resulting Proc objects
+ * Equivalent to `Proc.new`, except the resulting Proc objects
  * check the number of parameters passed when called.
  */
 static mrb_value
 proc_lambda(mrb_state *mrb, mrb_value self)
 {
   mrb_value blk;
-  const struct RProc *p;
 
   mrb_get_args(mrb, "&", &blk);
   if (mrb_nil_p(blk)) {
     mrb_raise(mrb, E_ARGUMENT_ERROR, "tried to create Proc object without a block");
   }
   check_proc(mrb, blk);
-  p = mrb_proc_ptr(blk);
+  const struct RProc *p = mrb_proc_ptr(blk);
   if (!MRB_PROC_STRICT_P(p)) {
     struct RProc *p2 = MRB_OBJ_ALLOC(mrb, MRB_TT_PROC, p->c);
     mrb_proc_copy(mrb, p2, p);
@@ -431,19 +441,15 @@ mrb_proc_arity(const struct RProc *p)
 mrb_value
 mrb_proc_local_variables(mrb_state *mrb, const struct RProc *proc)
 {
-  const mrb_irep *irep;
-  mrb_value vars;
-  size_t i;
-
   if (proc == NULL || MRB_PROC_CFUNC_P(proc)) {
     return mrb_ary_new(mrb);
   }
-  vars = mrb_hash_new(mrb);
+  mrb_value vars = mrb_hash_new(mrb);
   while (proc) {
     if (MRB_PROC_CFUNC_P(proc)) break;
-    irep = proc->body.irep;
+    const mrb_irep *irep = proc->body.irep;
     if (irep->lv) {
-      for (i = 0; i + 1 < irep->nlocals; i++) {
+      for (size_t i = 0; i + 1 < irep->nlocals; i++) {
         if (irep->lv[i]) {
           mrb_sym sym = irep->lv[i];
           const char *name = mrb_sym_name(mrb, sym);
@@ -538,6 +544,15 @@ mrb_proc_merge_lvar(mrb_state *mrb, mrb_irep *irep, struct REnv *env, int num, c
   MRB_ENV_SET_LEN(env, irep->nlocals);
 }
 
+/* ---------------------------*/
+static const mrb_mt_entry proc_rom_entries[] = {
+  MRB_MT_ENTRY(mrb_proc_init_copy, MRB_SYM(initialize_copy), MRB_ARGS_REQ(1) | MRB_MT_PRIVATE),
+  MRB_MT_ENTRY(proc_arity,         MRB_SYM(arity),        MRB_ARGS_NONE()),  /* 15.2.17.4.2 */
+  MRB_MT_ENTRY(proc_eql,           MRB_OPSYM(eq), MRB_ARGS_REQ(1)),
+  MRB_MT_ENTRY(proc_eql,           MRB_SYM_Q(eql), MRB_ARGS_REQ(1)),
+  MRB_MT_ENTRY(proc_hash,          MRB_SYM(hash),         MRB_ARGS_NONE()),  /* 15.2.17.4.2 */
+};
+
 void
 mrb_init_proc(mrb_state *mrb)
 {
@@ -547,11 +562,7 @@ mrb_init_proc(mrb_state *mrb)
   MRB_SET_INSTANCE_TT(pc, MRB_TT_PROC);
   MRB_UNDEF_ALLOCATOR(pc);
   mrb_define_class_method_id(mrb, pc, MRB_SYM(new), mrb_proc_s_new, MRB_ARGS_NONE()|MRB_ARGS_BLOCK());
-  mrb_define_private_method_id(mrb, pc, MRB_SYM(initialize_copy), mrb_proc_init_copy, MRB_ARGS_REQ(1));
-  mrb_define_method_id(mrb, pc, MRB_SYM(arity), proc_arity, MRB_ARGS_NONE()); /* 15.2.17.4.2 */
-  mrb_define_method_id(mrb, pc, MRB_OPSYM(eq), proc_eql, MRB_ARGS_REQ(1));
-  mrb_define_method_id(mrb, pc, MRB_SYM_Q(eql), proc_eql, MRB_ARGS_REQ(1));
-  mrb_define_method_id(mrb, pc, MRB_SYM(hash), proc_hash, MRB_ARGS_NONE()); /* 15.2.17.4.2 */
+  MRB_MT_INIT_ROM(mrb, pc, proc_rom_entries);
 
   MRB_METHOD_FROM_PROC(m, &call_proc);
   mrb_define_method_raw(mrb, pc, MRB_SYM(call), m);   /* 15.2.17.4.3 */

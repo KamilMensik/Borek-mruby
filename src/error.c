@@ -80,7 +80,7 @@ exc_initialize(mrb_state *mrb, mrb_value exc)
  *  With no argument, or if the argument is the same as the receiver,
  *  return the receiver. Otherwise, create a new
  *  exception object of the same class as the receiver, but with a
- *  message equal to <code>string</code>.
+ *  message equal to `string`.
  *
  */
 
@@ -741,13 +741,7 @@ mrb_core_init_protect(mrb_state *mrb, void (*body)(mrb_state*, void*), void *opa
     body(mrb, opaque);
     err = 0;
   } MRB_CATCH(&c_jmp) {
-    if (mrb->exc) {
-      mrb_print_error(mrb);
-      mrb->exc = NULL;
-    }
-    else {
-      mrb_core_init_printabort(mrb);
-    }
+    /* Leave mrb->exc set for caller to inspect */
   } MRB_END_EXC(&c_jmp);
 
   mrb->jmp = prev_jmp;
@@ -851,6 +845,11 @@ MRB_API void
 mrb_print_error(mrb_state *mrb)
 {
 #ifndef MRB_NO_STDIO
+  if (!mrb) {
+    /* mrb_open() returned NULL - allocation failed */
+    fputs("Failed to allocate mrb_state\n", stderr);
+    return;
+  }
   if (mrb->jmp == NULL) {
     struct mrb_jmpbuf c_jmp;
     MRB_TRY(&c_jmp) {
@@ -892,19 +891,24 @@ mrb_check_error(mrb_state *mrb)
   return FALSE;
 }
 
+/* ---------------------------*/
+static const mrb_mt_entry exception_rom_entries[] = {
+  MRB_MT_ENTRY(exc_exception,     MRB_SYM(exception), MRB_ARGS_OPT(1)),
+  MRB_MT_ENTRY(exc_initialize, MRB_SYM(initialize),    MRB_ARGS_OPT(1) | MRB_MT_PRIVATE),
+  MRB_MT_ENTRY(exc_to_s,          MRB_SYM(to_s),        MRB_ARGS_NONE()),
+  MRB_MT_ENTRY(exc_to_s,          MRB_SYM(message),     MRB_ARGS_NONE()),
+  MRB_MT_ENTRY(mrb_exc_inspect,   MRB_SYM(inspect),     MRB_ARGS_NONE()),
+  MRB_MT_ENTRY(mrb_exc_backtrace, MRB_SYM(backtrace),   MRB_ARGS_NONE()),
+  MRB_MT_ENTRY(exc_set_backtrace, MRB_SYM(set_backtrace), MRB_ARGS_REQ(1)),
+};
+
 void
 mrb_init_exception(mrb_state *mrb)
 {
   struct RClass *exception = mrb->eException_class = mrb_define_class_id(mrb, MRB_SYM(Exception), mrb->object_class); /* 15.2.22 */
   MRB_SET_INSTANCE_TT(exception, MRB_TT_EXCEPTION);
   mrb_define_class_method_id(mrb, exception, MRB_SYM(exception), mrb_instance_new,  MRB_ARGS_OPT(1));
-  mrb_define_method_id(mrb, exception, MRB_SYM(exception),       exc_exception,     MRB_ARGS_OPT(1));
-  mrb_define_method_id(mrb, exception, MRB_SYM(initialize),      exc_initialize,    MRB_ARGS_OPT(1));
-  mrb_define_method_id(mrb, exception, MRB_SYM(to_s),            exc_to_s,          MRB_ARGS_NONE());
-  mrb_define_method_id(mrb, exception, MRB_SYM(message),         exc_to_s,          MRB_ARGS_NONE());
-  mrb_define_method_id(mrb, exception, MRB_SYM(inspect),         mrb_exc_inspect,   MRB_ARGS_NONE());
-  mrb_define_method_id(mrb, exception, MRB_SYM(backtrace),       mrb_exc_backtrace, MRB_ARGS_NONE());
-  mrb_define_method_id(mrb, exception, MRB_SYM(set_backtrace),   exc_set_backtrace, MRB_ARGS_REQ(1));
+  MRB_MT_INIT_ROM(mrb, exception, exception_rom_entries);
 
   mrb->eStandardError_class = mrb_define_class_id(mrb, MRB_SYM(StandardError), mrb->eException_class); /* 15.2.23 */
   mrb_define_class_id(mrb, MRB_SYM(ArgumentError), E_STANDARD_ERROR);                                  /* 15.2.24 */
@@ -921,6 +925,7 @@ mrb_init_exception(mrb_state *mrb)
   mrb_define_class_id(mrb, MRB_SYM(SyntaxError), script_error);                                        /* 15.2.38 */
   struct RClass *index_error = mrb_define_class_id(mrb, MRB_SYM(IndexError), E_STANDARD_ERROR);        /* 15.2.33 */
   mrb_define_class_id(mrb, MRB_SYM(KeyError), index_error);
+  mrb_define_class_id(mrb, MRB_SYM(NoMatchingPatternError), E_STANDARD_ERROR);                         /* pattern matching */
   struct RClass *stack_error = mrb_define_class_id(mrb, MRB_SYM(SystemStackError), exception);
   mrb->stack_err = mrb_obj_ptr(mrb_exc_new_lit(mrb, stack_error, "stack level too deep"));
 

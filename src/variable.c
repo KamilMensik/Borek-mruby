@@ -19,9 +19,7 @@ typedef struct iv_tbl {
   mrb_value *ptr;
 } iv_tbl;
 
-#define IV_EMPTY 0
-#define IV_DELETED (1UL<<31)
-#define IV_KEY_P(k) (((k)&~((uint32_t)IV_DELETED))!=0)
+
 
 /* Creates the instance variable table. */
 static iv_tbl*
@@ -39,146 +37,157 @@ iv_new(mrb_state *mrb)
 
 static void iv_put(mrb_state *mrb, iv_tbl *t, mrb_sym sym, mrb_value val);
 
-#define IV_INITIAL_SIZE 4
+#define IV_INITIAL_SIZE 2
 
 static void
 iv_rehash(mrb_state *mrb, iv_tbl *t)
 {
   int old_alloc = t->alloc;
   int new_alloc = old_alloc > 0 ? old_alloc << 1 : IV_INITIAL_SIZE;
-  mrb_value *old_ptr = t->ptr;
-
-  /* allocate exactly the same total shape as before */
-  t->ptr   = (mrb_value*)mrb_calloc(mrb, sizeof(mrb_value)+sizeof(mrb_sym), new_alloc);
-  /* size remains unchanged, alloc grows */
-  t->alloc = new_alloc;
 
   if (old_alloc == 0) {
-    /* first‐time init: nothing to copy */
+    /* first-time init */
+    t->ptr = (mrb_value*)mrb_calloc(mrb, new_alloc, sizeof(mrb_value)+sizeof(mrb_sym));
+    t->alloc = new_alloc;
     return;
   }
 
-  /* pointers into the old block */
-  mrb_value *old_vals = old_ptr;
-  mrb_sym   *old_keys = (mrb_sym*)&old_ptr[old_alloc];
+  /* realloc may extend in place, avoiding malloc+memcpy+free */
+  size_t new_size = (size_t)new_alloc * (sizeof(mrb_value) + sizeof(mrb_sym));
+  t->ptr = (mrb_value*)mrb_realloc(mrb, t->ptr, new_size);
 
-  /* copy just the live range [0..size-1] */
-  memcpy(t->ptr, old_vals, sizeof(mrb_value)*t->size);
-  memcpy((mrb_sym*)&t->ptr[new_alloc], old_keys, sizeof(mrb_sym)*t->size);
+  /* move keys from old position to new position */
+  mrb_sym *old_keys = (mrb_sym*)&t->ptr[old_alloc];
+  mrb_sym *new_keys = (mrb_sym*)&t->ptr[new_alloc];
+  memmove(new_keys, old_keys, sizeof(mrb_sym) * t->size);
 
-  mrb_free(mrb, old_ptr);
+  /* clear extended value region (where old keys were + new slots) */
+  memset(&t->ptr[old_alloc], 0, sizeof(mrb_value) * (new_alloc - old_alloc));
+
+  /* clear extended key region */
+  memset(&new_keys[t->size], 0, sizeof(mrb_sym) * (new_alloc - t->size));
+
+  t->alloc = new_alloc;
 }
 
-/* Set the value for the symbol in the instance variable table. */
+/* Branch-free binary search helper: returns the index where `target` should be inserted/found. */
+static inline int
+iv_bsearch_idx(mrb_sym *keys, int size, mrb_sym target) {
+  if (size == 0) return 0;
+  int n = size;
+  mrb_sym *p = keys;
+  /* While more than one element remains, halve the range each iteration */
+  while (n > 1) {
+    int half = n >> 1;
+    MRB_MEM_PREFETCH(p + (half >> 1));
+    MRB_MEM_PREFETCH(p + half + (half >> 1));
+    mrb_sym mid_sym = p[half];
+    /*
+     * Update pointer p without a branch:
+     * If mid_sym < target, move p forward by half; otherwise keep p unchanged.
+     * Compiler will emit a CMOV or equivalent.
+     */
+    p = (mid_sym < target) ? p + half : p;
+    n -= half;
+  }
+  /* Final adjustment: if the remaining element is still less than target, advance by one */
+  return (int)(p - keys) + (p[0] < target);
+}
+
+/* Set (insert or update) the value for `sym` in the instance variable table using branch-free search. */
 static void
 iv_put(mrb_state *mrb, iv_tbl *t, mrb_sym sym, mrb_value val)
 {
+  /* If table is uninitialized, allocate and initialize */
   if (t->alloc == 0) {
     iv_rehash(mrb, t);
   }
+
+  /* Obtain pointers to keys and values arrays */
   mrb_sym   *keys = (mrb_sym*)&t->ptr[t->alloc];
-  mrb_value *vals = t->ptr;
+  mrb_value *vals =  t->ptr;
 
-  /* 1) binary search for existing key */
-  int lo = 0, hi = t->size - 1;
-  while (lo <= hi) {
-    int mid = (lo + hi) >> 1;
-    mrb_sym k = keys[mid];
-    if (k == sym) {
-      vals[mid] = val;  /* update */
-      return;
-    }
-    else if (k < sym) {
-      lo = mid + 1;
-    }
-    else {
-      hi = mid - 1;
-    }
+  /* Determine insertion/update index:
+   * If table has entries, use branch-free search; otherwise index = 0.
+   */
+  int lo = iv_bsearch_idx(keys, t->size, sym);
+
+  /* If the key already exists, update its value and return */
+  if (lo < t->size && keys[lo] == sym) {
+    vals[lo] = val;
+    return;
   }
-  /* lo is insertion position */
 
-  /* 2) grow if full */
+  /* Grow table if full, then recompute position */
   if (t->size == t->alloc) {
     iv_rehash(mrb, t);
     keys = (mrb_sym*)&t->ptr[t->alloc];
     vals =  t->ptr;
-    /* re-run binary search on the larger, sorted arrays */
-    lo = 0; hi = t->size - 1;
-    while (lo <= hi) {
-      int mid = (lo + hi) >> 1;
-      if (keys[mid] < sym) lo = mid + 1;
-      else                  hi = mid - 1;
-    }
+    lo = iv_bsearch_idx(keys, t->size, sym);
   }
 
-  /* 3) shift tail to make room */
-  int move = t->size - lo;
-  if (move > 0) {
-    memmove(&keys[lo+1], &keys[lo], sizeof(mrb_sym)   * move);
-    memmove(&vals[lo+1], &vals[lo], sizeof(mrb_value) * move);
+  /* Shift existing entries right to make room at index lo */
+  int move_count = t->size - lo;
+  if (move_count > 0) {
+    memmove(&keys[lo + 1], &keys[lo],     move_count * sizeof(mrb_sym));
+    memmove(&vals[lo + 1], &vals[lo],     move_count * sizeof(mrb_value));
   }
-  /* 4) insert new entry */
+
+  /* Insert the new key and value */
   keys[lo] = sym;
   vals[lo] = val;
   t->size++;
 }
 
-/* Get a value for a symbol from the instance variable table. */
+/* Get a value for `sym` from the instance variable table using branch-free search. */
 static int
 iv_get(mrb_state *mrb, iv_tbl *t, mrb_sym sym, mrb_value *vp)
 {
+  /* Return 0 if table is null, uninitialized, or empty */
   if (t == NULL || t->alloc == 0 || t->size == 0) return 0;
+
   mrb_sym   *keys = (mrb_sym*)&t->ptr[t->alloc];
   mrb_value *vals =  t->ptr;
 
-  int lo = 0, hi = t->size - 1;
-  while (lo <= hi) {
-    int mid = (lo + hi) >> 1;
-    mrb_sym k = keys[mid];
-    if (k == sym) {
-      if (vp) *vp = vals[mid];
-      return mid + 1;
-    }
-    else if (k < sym) {
-      lo = mid + 1;
-    }
-    else {
-      hi = mid - 1;
-    }
+  /* Find index in a branch-free manner */
+  int lo = iv_bsearch_idx(keys, t->size, sym);
+
+  /* If found, store value (if vp provided) and return 1-based position */
+  if (lo < t->size && keys[lo] == sym) {
+    if (vp) *vp = vals[lo];
+    return lo + 1;
   }
+
+  /* Not found */
   return 0;
 }
 
-/* Deletes the value for the symbol from the instance variable table. */
+/* Delete the entry for `sym` from the instance variable table using branch-free search. */
 static mrb_bool
 iv_del(mrb_state *mrb, iv_tbl *t, mrb_sym sym, mrb_value *vp)
 {
+  /* Return FALSE if table is null, uninitialized, or empty */
   if (t == NULL || t->alloc == 0 || t->size == 0) return FALSE;
+
   mrb_sym   *keys = (mrb_sym*)&t->ptr[t->alloc];
   mrb_value *vals =  t->ptr;
 
-  int lo = 0, hi = t->size - 1;
-  while (lo <= hi) {
-    int mid = (lo + hi) >> 1;
-    mrb_sym k = keys[mid];
-    if (k == sym) {
-      if (vp) *vp = vals[mid];
-      /* shift to remove */
-      int move = t->size - mid - 1;
-      if (move > 0) {
-        memmove(&keys[mid], &keys[mid+1], sizeof(mrb_sym)   * move);
-        memmove(&vals[mid], &vals[mid+1], sizeof(mrb_value) * move);
-      }
-      t->size--;
-      return TRUE;
+  /* Find index in a branch-free manner */
+  int lo = iv_bsearch_idx(keys, t->size, sym);
+
+  /* If found, optionally return value and shift entries left to delete */
+  if (lo < t->size && keys[lo] == sym) {
+    if (vp) *vp = vals[lo];
+    int move_count = t->size - lo - 1;
+    if (move_count > 0) {
+      memmove(&keys[lo],     &keys[lo + 1],     move_count * sizeof(mrb_sym));
+      memmove(&vals[lo],     &vals[lo + 1],     move_count * sizeof(mrb_value));
     }
-    else if (k < sym) {
-      lo = mid + 1;
-    }
-    else {
-      hi = mid - 1;
-    }
+    t->size--;
+    return TRUE;
   }
+
+  /* Not found */
   return FALSE;
 }
 
@@ -213,7 +222,7 @@ iv_copy(mrb_state *mrb, iv_tbl *t)
   t2->size  = t->size;
 
   /* allocate the same block shape */
-  t2->ptr = (mrb_value*)mrb_calloc(mrb, sizeof(mrb_value)+sizeof(mrb_sym), t2->alloc);
+  t2->ptr = (mrb_value*)mrb_calloc(mrb, t2->alloc, sizeof(mrb_value)+sizeof(mrb_sym));
 
   /* copy values[0...size] and keys[0...size] */
   memcpy(t2->ptr, t->ptr, sizeof(mrb_value)*t2->size);
@@ -228,6 +237,287 @@ iv_free(mrb_state *mrb, iv_tbl *t)
 {
   mrb_free(mrb, t->ptr);
   mrb_free(mrb, t);
+}
+
+/*
+ * Object Shape (Hidden Class) structures.
+ *
+ * A shape describes the IV layout of an object: which syms are stored
+ * at which indices. Shapes form a tree rooted at the empty root shape.
+ * Each child adds one IV (its "edge" sym). Objects sharing the same
+ * set of IVs (assigned in the same order) share the same shape,
+ * eliminating per-object key storage.
+ *
+ * Only MRB_TT_OBJECT instances are shaped. RClass, RHash, etc. keep
+ * traditional iv_tbl.
+ */
+
+/* Maximum IV count before de-shaping to iv_tbl */
+#define MRB_SHAPE_MAX_IVS 16
+
+/* Shape descriptor -- shared across objects with same IV layout */
+typedef struct mrb_iv_shape {
+  struct mrb_iv_shape *parent;    /* parent shape (one fewer IV) */
+  struct mrb_iv_shape *children;  /* linked list of child shapes */
+  struct mrb_iv_shape *sibling;   /* next child of same parent */
+  mrb_sym edge;                   /* IV sym added from parent */
+  uint16_t count;                 /* number of IV slots */
+} mrb_iv_shape;
+
+/* Per-object shaped IV storage (allocated via struct hack) */
+typedef struct mrb_shaped_iv {
+  mrb_iv_shape *shape;
+  mrb_value values[1];  /* shape->count elements */
+} mrb_shaped_iv;
+
+/* Create the empty root shape */
+static mrb_iv_shape*
+shape_root(mrb_state *mrb)
+{
+  mrb_iv_shape *s = (mrb_iv_shape*)mrb_calloc(mrb, 1, sizeof(mrb_iv_shape));
+  return s;
+}
+
+/* Find a child shape with the given edge sym */
+static mrb_iv_shape*
+shape_find_child(mrb_iv_shape *shape, mrb_sym sym)
+{
+  mrb_iv_shape *c = shape->children;
+  while (c) {
+    if (c->edge == sym) return c;
+    c = c->sibling;
+  }
+  return NULL;
+}
+
+/* Find or create a child shape for adding sym */
+static mrb_iv_shape*
+shape_transition(mrb_state *mrb, mrb_iv_shape *shape, mrb_sym sym)
+{
+  mrb_iv_shape *child = shape_find_child(shape, sym);
+  if (child) return child;
+
+  /* create new child shape */
+  child = (mrb_iv_shape*)mrb_malloc(mrb, sizeof(mrb_iv_shape));
+  child->parent = shape;
+  child->children = NULL;
+  child->sibling = shape->children;
+  child->edge = sym;
+  child->count = shape->count + 1;
+  shape->children = child;
+  return child;
+}
+
+/*
+ * Look up sym in shape by walking the parent chain.
+ * Returns the value index (0-based), or -1 if not found.
+ */
+static int
+shape_lookup(mrb_iv_shape *shape, mrb_sym sym)
+{
+  mrb_iv_shape *s = shape;
+  while (s->count > 0) {
+    if (s->edge == sym) return s->count - 1;
+    s = s->parent;
+  }
+  return -1;
+}
+
+/* Recursively free all shapes in the tree */
+static void
+shape_free_tree(mrb_state *mrb, mrb_iv_shape *shape)
+{
+  mrb_iv_shape *c = shape->children;
+  while (c) {
+    mrb_iv_shape *next = c->sibling;
+    shape_free_tree(mrb, c);
+    c = next;
+  }
+  mrb_free(mrb, shape);
+}
+
+/* Allocate a mrb_shaped_iv with room for count values */
+static mrb_shaped_iv*
+shaped_iv_alloc(mrb_state *mrb, mrb_iv_shape *shape)
+{
+  size_t sz = offsetof(mrb_shaped_iv, values) +
+              sizeof(mrb_value) * shape->count;
+  mrb_shaped_iv *siv = (mrb_shaped_iv*)mrb_malloc(mrb, sz);
+  siv->shape = shape;
+  return siv;
+}
+
+/* Convert a shaped object back to traditional iv_tbl (de-shape) */
+static void
+shaped_to_iv_tbl(mrb_state *mrb, struct RObject *obj)
+{
+  mrb_shaped_iv *siv = (mrb_shaped_iv*)obj->iv;
+  iv_tbl *t = NULL;
+
+  if (siv) {
+    mrb_iv_shape *shape = siv->shape;
+
+    if (shape->count > 0) {
+      /* reconstruct keys from parent chain */
+      mrb_sym keys[MRB_SHAPE_MAX_IVS];
+      mrb_iv_shape *s = shape;
+      while (s->count > 0) {
+        keys[s->count - 1] = s->edge;
+        s = s->parent;
+      }
+
+      t = iv_new(mrb);
+      for (int i = 0; i < shape->count; i++) {
+        if (!mrb_undef_p(siv->values[i])) {
+          iv_put(mrb, t, keys[i], siv->values[i]);
+        }
+      }
+    }
+    mrb_free(mrb, siv);
+  }
+  obj->iv = t;
+  obj->flags &= ~MRB_FL_OBJ_SHAPED;
+}
+
+/* --- Shaped IV operations --- */
+
+static void
+shaped_iv_set(mrb_state *mrb, struct RObject *obj, mrb_sym sym, mrb_value v)
+{
+  mrb_shaped_iv *siv = (mrb_shaped_iv*)obj->iv;
+  mrb_iv_shape *shape = siv ? siv->shape : mrb->root_shape;
+
+  /* check if sym already exists in current shape */
+  int idx = shape_lookup(shape, sym);
+  if (idx >= 0) {
+    siv->values[idx] = v;
+    return;
+  }
+
+  /* transition to new shape */
+  mrb_iv_shape *new_shape = shape_transition(mrb, shape, sym);
+
+  /* de-shape if too many IVs */
+  if (new_shape->count > MRB_SHAPE_MAX_IVS) {
+    shaped_to_iv_tbl(mrb, obj);
+    if (!obj->iv) {
+      obj->iv = iv_new(mrb);
+    }
+    iv_put(mrb, obj->iv, sym, v);
+    return;
+  }
+
+  /* allocate new shaped_iv with room for new shape */
+  mrb_shaped_iv *new_siv = shaped_iv_alloc(mrb, new_shape);
+
+  /* copy old values (they are a prefix) */
+  if (siv) {
+    memcpy(new_siv->values, siv->values,
+           sizeof(mrb_value) * shape->count);
+    mrb_free(mrb, siv);
+  }
+  /* new IV goes in the last slot */
+  new_siv->values[new_shape->count - 1] = v;
+
+  obj->iv = (iv_tbl*)new_siv;
+}
+
+static mrb_value
+shaped_iv_get(struct RObject *obj, mrb_sym sym)
+{
+  mrb_shaped_iv *siv = (mrb_shaped_iv*)obj->iv;
+  if (!siv) return mrb_nil_value();
+  int idx = shape_lookup(siv->shape, sym);
+  if (idx >= 0 && !mrb_undef_p(siv->values[idx]))
+    return siv->values[idx];
+  return mrb_nil_value();
+}
+
+static mrb_bool
+shaped_iv_defined(struct RObject *obj, mrb_sym sym)
+{
+  mrb_shaped_iv *siv = (mrb_shaped_iv*)obj->iv;
+  if (!siv) return FALSE;
+  int idx = shape_lookup(siv->shape, sym);
+  if (idx >= 0 && !mrb_undef_p(siv->values[idx]))
+    return TRUE;
+  return FALSE;
+}
+
+static void
+shaped_iv_foreach(mrb_state *mrb, struct RObject *obj,
+                  mrb_iv_foreach_func *func, void *p)
+{
+  mrb_shaped_iv *siv = (mrb_shaped_iv*)obj->iv;
+  if (!siv) return;
+  mrb_iv_shape *shape = siv->shape;
+  if (shape->count == 0) return;
+
+  /* reconstruct keys from parent chain */
+  mrb_sym keys[MRB_SHAPE_MAX_IVS];
+  mrb_iv_shape *s = shape;
+  while (s->count > 0) {
+    keys[s->count - 1] = s->edge;
+    s = s->parent;
+  }
+
+  for (int i = 0; i < shape->count; i++) {
+    if (!mrb_undef_p(siv->values[i])) {
+      if ((*func)(mrb, keys[i], siv->values[i], p) != 0) return;
+    }
+  }
+}
+
+static size_t
+shaped_iv_mark(mrb_state *mrb, struct RObject *obj)
+{
+  mrb_shaped_iv *siv = (mrb_shaped_iv*)obj->iv;
+  if (!siv) return 0;
+  mrb_iv_shape *shape = siv->shape;
+  for (int i = 0; i < shape->count; i++) {
+    if (!mrb_undef_p(siv->values[i])) {
+      mrb_gc_mark_value(mrb, siv->values[i]);
+    }
+  }
+  return shape->count;
+}
+
+static void
+shaped_iv_free(mrb_state *mrb, struct RObject *obj)
+{
+  if (obj->iv) {
+    mrb_free(mrb, obj->iv);
+  }
+}
+
+static void
+shaped_iv_copy(mrb_state *mrb, struct RObject *dst, struct RObject *src)
+{
+  mrb_shaped_iv *ssiv = (mrb_shaped_iv*)src->iv;
+  if (!ssiv) {
+    dst->iv = NULL;
+    return;
+  }
+  mrb_iv_shape *shape = ssiv->shape;
+  mrb_shaped_iv *dsiv = shaped_iv_alloc(mrb, shape);
+  memcpy(dsiv->values, ssiv->values, sizeof(mrb_value) * shape->count);
+  dst->iv = (iv_tbl*)dsiv;
+}
+
+/* Public init/free for shape tree (called from state.c) */
+void
+mrb_init_shape(mrb_state *mrb)
+{
+  mrb->root_shape = shape_root(mrb);
+}
+
+void
+mrb_free_shape(mrb_state *mrb)
+{
+  if (mrb->root_shape) {
+    shape_free_tree(mrb, mrb->root_shape);
+    mrb->root_shape = NULL;
+  }
 }
 
 static int
@@ -261,6 +551,9 @@ mrb_gc_free_gv(mrb_state *mrb)
 size_t
 mrb_gc_mark_iv(mrb_state *mrb, struct RObject *obj)
 {
+  if (MRB_OBJ_SHAPED_P(obj)) {
+    return shaped_iv_mark(mrb, obj);
+  }
   mark_tbl(mrb, obj->iv);
   return iv_size(mrb, obj->iv);
 }
@@ -268,6 +561,10 @@ mrb_gc_mark_iv(mrb_state *mrb, struct RObject *obj)
 void
 mrb_gc_free_iv(mrb_state *mrb, struct RObject *obj)
 {
+  if (MRB_OBJ_SHAPED_P(obj)) {
+    shaped_iv_free(mrb, obj);
+    return;
+  }
   if (obj->iv) {
     iv_free(mrb, obj->iv);
   }
@@ -322,8 +619,11 @@ class_iv_ptr(struct RClass *c)
 MRB_API mrb_value
 mrb_obj_iv_get(mrb_state *mrb, struct RObject *obj, mrb_sym sym)
 {
-  mrb_value v;
+  if (MRB_OBJ_SHAPED_P(obj)) {
+    return shaped_iv_get(obj, sym);
+  }
 
+  mrb_value v;
   if (obj->iv && iv_get(mrb, obj->iv, sym, &v))
     return v;
   return mrb_nil_value();
@@ -393,6 +693,11 @@ mrb_obj_iv_set_force(mrb_state *mrb, struct RObject *obj, mrb_sym sym, mrb_value
   if (namespace_p(obj->tt)) {
     assign_class_name(mrb, obj, sym, v);
   }
+  if (MRB_OBJ_SHAPED_P(obj)) {
+    shaped_iv_set(mrb, obj, sym, v);
+    mrb_field_write_barrier_value(mrb, (struct RBasic*)obj, v);
+    return;
+  }
   if (!obj->iv) {
     obj->iv = iv_new(mrb);
   }
@@ -438,6 +743,10 @@ MRB_API void
 mrb_iv_foreach(mrb_state *mrb, mrb_value obj, mrb_iv_foreach_func *func, void *p)
 {
   if (!obj_iv_p(obj)) return;
+  if (MRB_OBJ_SHAPED_P(mrb_obj_ptr(obj))) {
+    shaped_iv_foreach(mrb, mrb_obj_ptr(obj), func, p);
+    return;
+  }
   iv_foreach(mrb, mrb_obj_ptr(obj)->iv, func, p);
 }
 
@@ -483,9 +792,11 @@ mrb_iv_set(mrb_state *mrb, mrb_value obj, mrb_sym sym, mrb_value v)
 MRB_API mrb_bool
 mrb_obj_iv_defined(mrb_state *mrb, struct RObject *obj, mrb_sym sym)
 {
-  iv_tbl *t;
+  if (MRB_OBJ_SHAPED_P(obj)) {
+    return shaped_iv_defined(obj, sym);
+  }
 
-  t = obj->iv;
+  iv_tbl *t = obj->iv;
   if (t && iv_get(mrb, t, sym, NULL)) return TRUE;
   return FALSE;
 }
@@ -532,10 +843,9 @@ mrb_iv_defined(mrb_state *mrb, mrb_value obj, mrb_sym sym)
 MRB_API mrb_bool
 mrb_iv_name_sym_p(mrb_state *mrb, mrb_sym iv_name)
 {
-  const char *s;
   mrb_int len;
+  const char *s = mrb_sym_name_len(mrb, iv_name, &len);
 
-  s = mrb_sym_name_len(mrb, iv_name, &len);
   if (len < 2) return FALSE;
   if (s[0] != '@') return FALSE;
   if (ISDIGIT(s[1])) return FALSE;
@@ -578,65 +888,56 @@ mrb_iv_copy(mrb_state *mrb, mrb_value dest, mrb_value src)
   struct RObject *d = mrb_obj_ptr(dest);
   struct RObject *s = mrb_obj_ptr(src);
 
-  if (d->iv) {
+  /* free dest's existing IVs */
+  if (MRB_OBJ_SHAPED_P(d)) {
+    shaped_iv_free(mrb, d);
+    d->iv = NULL;
+  }
+  else if (d->iv) {
     iv_free(mrb, d->iv);
-    d->iv = 0;
+    d->iv = NULL;
   }
-  if (s->iv) {
-    mrb_write_barrier(mrb, (struct RBasic*)d);
-    d->iv = iv_copy(mrb, s->iv);
+
+  if (MRB_OBJ_SHAPED_P(s) && MRB_OBJ_SHAPED_P(d)) {
+    /* both shaped: share shape, memcpy values */
+    if (s->iv) {
+      mrb_write_barrier(mrb, (struct RBasic*)d);
+      shaped_iv_copy(mrb, d, s);
+    }
   }
-}
-
-static int
-inspect_i(mrb_state *mrb, mrb_sym sym, mrb_value v, void *p)
-{
-  mrb_value str = *(mrb_value*)p;
-  const char *s;
-  mrb_int len;
-  mrb_value ins;
-  char *sp = RSTRING_PTR(str);
-
-  /* need not to show internal data */
-  if (sp[0] == '-') { /* first element */
-    sp[0] = '#';
-    mrb_str_cat_lit(mrb, str, " ");
+  else if (MRB_OBJ_SHAPED_P(s)) {
+    /* src shaped, dest unshaped: convert src to iv_tbl copy */
+    mrb_shaped_iv *ssiv = (mrb_shaped_iv*)s->iv;
+    if (ssiv) {
+      mrb_iv_shape *shape = ssiv->shape;
+      if (shape->count > 0) {
+        mrb_sym keys[MRB_SHAPE_MAX_IVS];
+        mrb_iv_shape *sh = shape;
+        while (sh->count > 0) {
+          keys[sh->count - 1] = sh->edge;
+          sh = sh->parent;
+        }
+        iv_tbl *t = iv_new(mrb);
+        for (int i = 0; i < shape->count; i++) {
+          if (!mrb_undef_p(ssiv->values[i])) {
+            iv_put(mrb, t, keys[i], ssiv->values[i]);
+          }
+        }
+        mrb_write_barrier(mrb, (struct RBasic*)d);
+        d->iv = t;
+      }
+    }
   }
   else {
-    mrb_str_cat_lit(mrb, str, ", ");
-  }
-  s = mrb_sym_name_len(mrb, sym, &len);
-  mrb_str_cat(mrb, str, s, len);
-  mrb_str_cat_lit(mrb, str, "=");
-  ins = mrb_inspect(mrb, v);
-  mrb_str_cat_str(mrb, str, ins);
-  return 0;
-}
-
-mrb_value
-mrb_obj_iv_inspect(mrb_state *mrb, struct RObject *obj)
-{
-  iv_tbl *t = obj->iv;
-  size_t len = iv_size(mrb, t);
-
-  if (len > 0) {
-    const char *cn = mrb_obj_classname(mrb, mrb_obj_value(obj));
-    mrb_value str = mrb_str_new_capa(mrb, 30);
-
-    mrb_str_cat_lit(mrb, str, "-<");
-    mrb_str_cat_cstr(mrb, str, cn);
-    mrb_str_cat_lit(mrb, str, ":");
-    mrb_str_cat_str(mrb, str, mrb_ptr_to_str(mrb, obj));
-
-    if (mrb_inspect_recursive_p(mrb, mrb_obj_value(obj))) {
-      mrb_str_cat_lit(mrb, str, " ...>");
-      return str;
+    /* both unshaped or dest shaped but src unshaped */
+    if (MRB_OBJ_SHAPED_P(d)) {
+      d->flags &= ~MRB_FL_OBJ_SHAPED;
     }
-    iv_foreach(mrb, t, inspect_i, &str);
-    mrb_str_cat_lit(mrb, str, ">");
-    return str;
+    if (s->iv) {
+      mrb_write_barrier(mrb, (struct RBasic*)d);
+      d->iv = iv_copy(mrb, s->iv);
+    }
   }
-  return mrb_any_to_s(mrb, mrb_obj_value(obj));
 }
 
 /*
@@ -657,10 +958,25 @@ mrb_iv_remove(mrb_state *mrb, mrb_value obj, mrb_sym sym)
 {
   if (obj_iv_p(obj)) {
     struct RObject *o = mrb_obj_ptr(obj);
+    mrb_check_frozen(mrb, o);
+
+    if (MRB_OBJ_SHAPED_P(o)) {
+      mrb_shaped_iv *siv = (mrb_shaped_iv*)o->iv;
+      if (siv) {
+        int idx = shape_lookup(siv->shape, sym);
+        if (idx >= 0 && !mrb_undef_p(siv->values[idx])) {
+          mrb_value val = siv->values[idx];
+          /* de-shape, then remove the key */
+          shaped_to_iv_tbl(mrb, o);
+          iv_del(mrb, o->iv, sym, NULL);
+          return val;
+        }
+      }
+      return mrb_undef_value();
+    }
+
     iv_tbl *t = o->iv;
     mrb_value val;
-
-    mrb_check_frozen(mrb, o);
     if (iv_del(mrb, t, sym, &val)) {
       return val;
     }
@@ -671,12 +987,10 @@ mrb_iv_remove(mrb_state *mrb, mrb_value obj, mrb_sym sym)
 static int
 iv_i(mrb_state *mrb, mrb_sym sym, mrb_value v, void *p)
 {
-  mrb_value ary;
-  const char* s;
+  mrb_value ary = *(mrb_value*)p;
   mrb_int len;
+  const char* s = mrb_sym_name_len(mrb, sym, &len);
 
-  ary = *(mrb_value*)p;
-  s = mrb_sym_name_len(mrb, sym, &len);
   if (len > 1 && s[0] == '@' && s[1] != '@') {
     mrb_ary_push(mrb, ary, mrb_symbol_value(sym));
   }
@@ -703,11 +1017,16 @@ iv_i(mrb_state *mrb, mrb_sym sym, mrb_value v, void *p)
 mrb_value
 mrb_obj_instance_variables(mrb_state *mrb, mrb_value self)
 {
-  mrb_value ary;
+  mrb_value ary = mrb_ary_new(mrb);
 
-  ary = mrb_ary_new(mrb);
   if (obj_iv_p(self)) {
-    iv_foreach(mrb, mrb_obj_ptr(self)->iv, iv_i, &ary);
+    struct RObject *obj = mrb_obj_ptr(self);
+    if (MRB_OBJ_SHAPED_P(obj)) {
+      shaped_iv_foreach(mrb, obj, iv_i, &ary);
+    }
+    else {
+      iv_foreach(mrb, obj->iv, iv_i, &ary);
+    }
   }
   return ary;
 }
@@ -715,12 +1034,10 @@ mrb_obj_instance_variables(mrb_state *mrb, mrb_value self)
 static int
 cv_i(mrb_state *mrb, mrb_sym sym, mrb_value v, void *p)
 {
-  mrb_value ary;
-  const char* s;
+  mrb_value ary = *(mrb_value*)p;
   mrb_int len;
+  const char* s = mrb_sym_name_len(mrb, sym, &len);
 
-  ary = *(mrb_value*)p;
-  s = mrb_sym_name_len(mrb, sym, &len);
   if (len > 2 && s[0] == '@' && s[1] == '@') {
     mrb_ary_push(mrb, ary, mrb_symbol_value(sym));
   }
@@ -732,7 +1049,7 @@ cv_i(mrb_state *mrb, mrb_sym sym, mrb_value v, void *p)
  *  call-seq:
  *     mod.class_variables(inherit=true)   -> array
  *
- *  Returns an array of the names of class variables in <i>mod</i>.
+ *  Returns an array of the names of class variables in *mod*.
  *
  *     class One
  *       @@var1 = 1
@@ -746,13 +1063,11 @@ cv_i(mrb_state *mrb, mrb_sym sym, mrb_value v, void *p)
 mrb_value
 mrb_mod_class_variables(mrb_state *mrb, mrb_value mod)
 {
-  mrb_value ary;
-  struct RClass *c;
   mrb_bool inherit = TRUE;
 
   mrb_get_args(mrb, "|b", &inherit);
-  ary = mrb_ary_new(mrb);
-  c = mrb_class_ptr(mod);
+  mrb_value ary = mrb_ary_new(mrb);
+  struct RClass *c = mrb_class_ptr(mod);
   while (c) {
     iv_foreach(mrb, class_iv_ptr(c), cv_i, &ary);
     if (!inherit) break;
@@ -776,9 +1091,8 @@ mrb_mod_cv_get(mrb_state *mrb, struct RClass *c, mrb_sym sym)
   }
   if (given) return v;
   if (cls->tt == MRB_TT_SCLASS) {
-    mrb_value klass;
+    mrb_value klass = mrb_obj_iv_get(mrb, (struct RObject*)cls, MRB_SYM(__attached__));
 
-    klass = mrb_obj_iv_get(mrb, (struct RObject*)cls, MRB_SYM(__attached__));
     c = mrb_class_ptr(klass);
     if (c->tt == MRB_TT_CLASS || c->tt == MRB_TT_MODULE) {
       given = FALSE;
@@ -850,9 +1164,8 @@ mrb_mod_cv_set(mrb_state *mrb, struct RClass *c, mrb_sym sym, mrb_value v)
   }
 
   if (cls->tt == MRB_TT_SCLASS) {
-    mrb_value klass;
+    mrb_value klass = mrb_obj_iv_get(mrb, (struct RObject*)cls, MRB_SYM(__attached__));
 
-    klass = mrb_obj_iv_get(mrb, (struct RObject*)cls, MRB_SYM(__attached__));
     switch (mrb_type(klass)) {
     case MRB_TT_CLASS:
     case MRB_TT_MODULE:
@@ -1120,8 +1433,10 @@ mrb_const_set(mrb_state *mrb, mrb_value mod, mrb_sym sym, mrb_value v)
   }
   mrb_obj_iv_set(mrb, mrb_obj_ptr(mod), sym, v);
 
-  mrb_value name = mrb_symbol_value(sym);
-  mrb_funcall_argv(mrb, mod, MRB_SYM(const_added), 1, &name);
+  if (!mrb->bootstrapping) {
+    mrb_value name = mrb_symbol_value(sym);
+    mrb_funcall_argv(mrb, mod, MRB_SYM(const_added), 1, &name);
+  }
 }
 
 /*
@@ -1200,12 +1515,10 @@ mrb_define_global_const(mrb_state *mrb, const char *name, mrb_value val)
 static int
 const_i(mrb_state *mrb, mrb_sym sym, mrb_value v, void *p)
 {
-  mrb_value ary;
-  const char* s;
+  mrb_value ary = *(mrb_value*)p;
   mrb_int len;
+  const char* s = mrb_sym_name_len(mrb, sym, &len);
 
-  ary = *(mrb_value*)p;
-  s = mrb_sym_name_len(mrb, sym, &len);
   if (len >= 1 && ISUPPER(s[0])) {
     mrb_int i, alen = RARRAY_LEN(ary);
 
@@ -1237,12 +1550,11 @@ mrb_mod_const_at(mrb_state *mrb, struct RClass *c, mrb_value ary)
 mrb_value
 mrb_mod_constants(mrb_state *mrb, mrb_value mod)
 {
-  mrb_value ary;
   mrb_bool inherit = TRUE;
   struct RClass *c = mrb_class_ptr(mod);
 
   mrb_get_args(mrb, "|b", &inherit);
-  ary = mrb_ary_new(mrb);
+  mrb_value ary = mrb_ary_new(mrb);
   while (c) {
     mrb_mod_const_at(mrb, c, ary);
     if (!inherit) break;
@@ -1311,9 +1623,7 @@ mrb_gv_remove(mrb_state *mrb, mrb_sym sym)
 static int
 gv_i(mrb_state *mrb, mrb_sym sym, mrb_value v, void *p)
 {
-  mrb_value ary;
-
-  ary = *(mrb_value*)p;
+  mrb_value ary = *(mrb_value*)p;
   mrb_ary_push(mrb, ary, mrb_symbol_value(sym));
   return 0;
 }
@@ -1452,12 +1762,10 @@ find_class_sym(mrb_state *mrb, struct RClass *outer, struct RClass *c)
   return arg.sym;
 }
 
-static struct RClass*
-outer_class(mrb_state *mrb, struct RClass *c)
+MRB_API struct RClass*
+mrb_class_outer(mrb_state *mrb, struct RClass *c)
 {
-  mrb_value ov;
-
-  ov = mrb_obj_iv_get(mrb, (struct RObject*)c, MRB_SYM(__outer__));
+  mrb_value ov = mrb_obj_iv_get(mrb, (struct RObject*)c, MRB_SYM(__outer__));
   if (mrb_nil_p(ov)) return NULL;
   switch (mrb_type(ov)) {
   case MRB_TT_CLASS:
@@ -1477,10 +1785,10 @@ detect_outer_loop(mrb_state *mrb, struct RClass *c)
 
   for (;;) {
     if (h == NULL) return FALSE;
-    h = outer_class(mrb, h);
+    h = mrb_class_outer(mrb, h);
     if (h == NULL) return FALSE;
-    h = outer_class(mrb, h);
-    t = outer_class(mrb, t);
+    h = mrb_class_outer(mrb, h);
+    t = mrb_class_outer(mrb, t);
     if (t == h) return TRUE;
   }
 }
@@ -1488,23 +1796,20 @@ detect_outer_loop(mrb_state *mrb, struct RClass *c)
 mrb_value
 mrb_class_find_path(mrb_state *mrb, struct RClass *c)
 {
-  struct RClass *outer;
-  mrb_value path;
-  mrb_sym name;
-  const char *str;
-  mrb_int len;
-
   if (detect_outer_loop(mrb, c)) return mrb_nil_value();
-  outer = outer_class(mrb, c);
+  struct RClass *outer = mrb_class_outer(mrb, c);
   if (outer == NULL) return mrb_nil_value();
-  name = find_class_sym(mrb, outer, c);
+
+  mrb_sym name = find_class_sym(mrb, outer, c);
   if (name == 0) return mrb_nil_value();
-  path = mrb_str_new_capa(mrb, 40);
-  str = mrb_class_name(mrb, outer);
-  mrb_str_cat_cstr(mrb, path, str);
+
+  mrb_value path = mrb_str_new_capa(mrb, 40);
+  const char *cname = mrb_class_name(mrb, outer);
+  mrb_str_cat_cstr(mrb, path, cname);
   mrb_str_cat_cstr(mrb, path, "::");
 
-  str = mrb_sym_name_len(mrb, name, &len);
+  mrb_int len;
+  const char *str = mrb_sym_name_len(mrb, name, &len);
   mrb_str_cat(mrb, path, str, len);
   if (RSTRING_PTR(path)[0] != '#') {
     iv_del(mrb, c->iv, MRB_SYM(__outer__), NULL);
@@ -1518,7 +1823,14 @@ mrb_class_find_path(mrb_state *mrb, struct RClass *c)
 size_t
 mrb_obj_iv_tbl_memsize(mrb_value obj)
 {
-  iv_tbl *t = mrb_obj_ptr(obj)->iv;
+  struct RObject *o = mrb_obj_ptr(obj);
+  if (MRB_OBJ_SHAPED_P(o)) {
+    mrb_shaped_iv *siv = (mrb_shaped_iv*)o->iv;
+    if (!siv) return 0;
+    return offsetof(mrb_shaped_iv, values) +
+           sizeof(mrb_value) * siv->shape->count;
+  }
+  iv_tbl *t = o->iv;
   if (t == NULL) return 0;
   return sizeof(iv_tbl) + t->alloc*(sizeof(mrb_value)+sizeof(mrb_sym));
 }

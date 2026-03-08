@@ -1,14 +1,26 @@
 class Set
+  #
+  # call-seq:
+  #   Set.new(enum = nil) -> set
+  #   Set.new(enum = nil) { |obj| block } -> set
+  #
+  # Creates a new set containing the elements of the given enumerable object.
+  # If a block is given, the elements are preprocessed by the given block.
+  #
+  #   Set.new([1, 2, 3])           #=> #<Set: {1, 2, 3}>
+  #   Set.new([1, 2, 2, 3])        #=> #<Set: {1, 2, 3}>
+  #   Set.new([1, 2, 3]) { |x| x * 2 }  #=> #<Set: {2, 4, 6}>
+  #
   def initialize(enum = nil, &block)
     __init
     return self if enum.nil?
 
     if block
       __do_with_enum(enum) { add(block.call(_1)) }
-      self
     else
       merge(enum)
     end
+    self
   end
 
   # internal method
@@ -20,61 +32,68 @@ class Set
     end
   end
 
-  # Merges the elements of the given enumerable object to the set and returns
-  # self.
   #
-  # @param [Enumerable] enum The enumerable object to merge elements from
-  # @return [Set] self
+  # call-seq:
+  #   set.merge(enum) -> self
+  #
+  # Merges the elements of the given enumerable object to the set and returns self.
+  #
+  #   set = Set.new([1, 2])
+  #   set.merge([2, 3, 4])  #=> #<Set: {1, 2, 3, 4}>
+  #   set                   #=> #<Set: {1, 2, 3, 4}>
+  #
   def merge(enum)
-    if enum.is_a?(Set)
-      # Fast path: Call C-implemented function for Set-to-Set merge
-      __merge(enum)
-    else
-      # General path: Add each element from the enumerable
-      __do_with_enum(enum) { add(_1) }
-      self
-    end
+    __merge(enum) || __do_with_enum(enum) {|o| add(o) }
+    self
   end
 
+  #
+  # call-seq:
+  #   set.replace(enum) -> self
+  #
   # Replaces the contents of the set with the contents of the given enumerable
   # object and returns self.
   #
-  # @param [Enumerable] enum The enumerable object to replace with
-  # @return [Set] self
+  #   set = Set.new([1, 2, 3])
+  #   set.replace([4, 5, 6])  #=> #<Set: {4, 5, 6}>
+  #   set                     #=> #<Set: {4, 5, 6}>
+  #
   def replace(enum)
     clear
     merge(enum)
   end
 
+  #
+  # call-seq:
+  #   set.subtract(enum) -> self
+  #
   # Deletes every element that appears in the given enumerable object and
   # returns self.
   #
-  # @param [Enumerable] enum The enumerable object containing elements to remove
-  # @return [Set] self
+  #   set = Set.new([1, 2, 3, 4])
+  #   set.subtract([2, 4])  #=> #<Set: {1, 3}>
+  #   set                   #=> #<Set: {1, 3}>
+  #
   def subtract(enum)
-    if enum.is_a?(Set)
-      # Fast path: Call C-implemented function for Set-to-Set subtraction
-      __subtract(enum)
-    else
-      # General path: Remove each element from the enumerable
-      __do_with_enum(enum) { delete(_1) }
-      self
-    end
+    __subtract(enum) || __do_with_enum(enum) {|o| delete(o) }
+    self
   end
 
+  #
+  # call-seq:
+  #   set.intersection(enum) -> new_set
+  #   set & enum -> new_set
+  #
   # Returns a new set containing elements common to the set and the given
   # enumerable object.
   #
-  # @param [Enumerable] enum The enumerable object to find common elements with
-  # @return [Set] A new set containing elements common to both
+  #   Set.new([1, 2, 3]).intersection([2, 3, 4])  #=> #<Set: {2, 3}>
+  #   Set.new([1, 2, 3]) & [2, 3, 4]              #=> #<Set: {2, 3}>
+  #
   def intersection(enum)
-    if enum.is_a?(Set)
-      # Fast path: Call C-implemented function for Set-to-Set intersection
-      __intersection(enum)
-    else
-      # General path: Implement in Ruby for any enumerable
+    __intersection(enum) || begin
       n = Set.new
-      __do_with_enum(enum) { n.add(_1) if include?(_1) }
+      __do_with_enum(enum) {|o| n.add(o) if include?(o) }
       n
     end
   end
@@ -82,38 +101,42 @@ class Set
   # Alias for #intersection
   alias & intersection
 
+  #
+  # call-seq:
+  #   set.union(enum) -> new_set
+  #   set | enum -> new_set
+  #   set + enum -> new_set
+  #
   # Returns a new set built by merging the set and the elements of the given
   # enumerable object.
   #
-  # @param [Enumerable] enum The enumerable object to merge with
-  # @return [Set] A new set containing all elements from both
+  #   Set.new([1, 2]).union([2, 3, 4])  #=> #<Set: {1, 2, 3, 4}>
+  #   Set.new([1, 2]) | [2, 3, 4]       #=> #<Set: {1, 2, 3, 4}>
+  #   Set.new([1, 2]) + [2, 3, 4]       #=> #<Set: {1, 2, 3, 4}>
+  #
   def union(enum)
-    if enum.is_a?(Set)
-      # Fast path: Call C-implemented function for Set-to-Set union
-      __union(enum)
-    else
-      # General path: Create a duplicate and merge the enumerable
-      dup.merge(enum)
-    end
+    __union(enum) || dup.merge(enum)
   end
 
   # Aliases for #union
   alias | union
   alias + union
 
+  #
+  # call-seq:
+  #   set.difference(enum) -> new_set
+  #   set - enum -> new_set
+  #
   # Returns a new set built by duplicating the set, removing every element that
   # appears in the given enumerable object.
   #
-  # @param [Enumerable] enum The enumerable object to find elements to remove
-  # @return [Set] A new set with elements from self that are not in enum
+  #   Set.new([1, 2, 3, 4]).difference([2, 4])  #=> #<Set: {1, 3}>
+  #   Set.new([1, 2, 3, 4]) - [2, 4]            #=> #<Set: {1, 3}>
+  #
   def difference(enum)
-    if enum.is_a?(Set)
-      # Fast path: Call C-implemented function for Set-to-Set difference
-      __difference(enum)
-    else
-      # General path: Create a duplicate and remove the enumerable elements
+    __difference(enum) || begin
       result = dup
-      __do_with_enum(enum) { result.delete(_1) }
+      __do_with_enum(enum) {|o| result.delete(o) }
       result
     end
   end
@@ -121,115 +144,177 @@ class Set
   # Alias for #difference
   alias - difference
 
-  # Returns a new set containing elements exclusive between the set and the given
-  # enumerable object.
   #
-  # @param [Enumerable] enum The enumerable object to find exclusive elements with
-  # @return [Set] A new set containing elements exclusive between both
+  # call-seq:
+  #   set ^ enum -> new_set
+  #
+  # Returns a new set containing elements exclusive between the set and the given
+  # enumerable object. (set ^ enum) is equivalent to ((set | enum) - (set & enum)).
+  #
+  #   Set.new([1, 2, 3]) ^ [2, 3, 4]  #=> #<Set: {1, 4}>
+  #   Set.new([1, 2]) ^ [2, 3]        #=> #<Set: {1, 3}>
+  #
   def ^(enum)
-    if enum.is_a?(Set)
-      # Fast path: Call C-implemented function for Set-to-Set XOR
-      __xor(enum)
-    else
-      # General path: Convert enum to a set and calculate (self|s2)-(self&s2)
+    __xor(enum) || begin
       s2 = Set.new(enum)
       (self | s2) - (self & s2)
     end
   end
 
-  # Iterates over each element in the set.
   #
-  # @yield [Object] Each element in the set
-  # @return [Set] self
+  # call-seq:
+  #   set.each { |obj| block } -> set
+  #   set.each -> enumerator
+  #
+  # Calls the given block once for each element in the set, passing the element
+  # as parameter. Returns an enumerator if no block is given.
+  #
+  #   Set.new([1, 2, 3]).each { |x| puts x }
+  #   # prints: 1, 2, 3
+  #   #=> #<Set: {1, 2, 3}>
+  #
   def each(&block)
-    return to_enum :each unless block_given?
+    return to_enum(:each) unless block_given?
     # Use C implementation's to_a method and iterate
     to_a.each(&block)
     self
   end
 
-  # Deletes every element for which the given block returns true.
   #
-  # @yield [Object] Each element in the set
-  # @yieldreturn [Boolean] true if the element should be deleted
-  # @return [Set] self
+  # call-seq:
+  #   set.delete_if { |obj| block } -> set
+  #   set.delete_if -> enumerator
+  #
+  # Deletes every element of the set for which block evaluates to true, and
+  # returns self. Returns an enumerator if no block is given.
+  #
+  #   set = Set.new([1, 2, 3, 4, 5])
+  #   set.delete_if { |x| x.even? }  #=> #<Set: {1, 3, 5}>
+  #   set                            #=> #<Set: {1, 3, 5}>
+  #
   def delete_if
-    return to_enum :delete_if unless block_given?
+    return to_enum(:delete_if) unless block_given?
     select { yield _1 }.each { delete(_1) }
     self
   end
 
-  # Deletes every element for which the given block returns false.
   #
-  # @yield [Object] Each element in the set
-  # @yieldreturn [Boolean] true if the element should be kept
-  # @return [Set] self
+  # call-seq:
+  #   set.keep_if { |obj| block } -> set
+  #   set.keep_if -> enumerator
+  #
+  # Deletes every element of the set for which block evaluates to false, and
+  # returns self. Returns an enumerator if no block is given.
+  #
+  #   set = Set.new([1, 2, 3, 4, 5])
+  #   set.keep_if { |x| x.even? }  #=> #<Set: {2, 4}>
+  #   set                          #=> #<Set: {2, 4}>
+  #
   def keep_if
-    return to_enum :keep_if unless block_given?
+    return to_enum(:keep_if) unless block_given?
     reject { yield _1 }.each { delete(_1) }
     self
   end
 
-  # Replaces each element with the result of the given block.
   #
-  # @yield [Object] Each element in the set
-  # @yieldreturn [Object] The new value for the element
-  # @return [Set] self
+  # call-seq:
+  #   set.collect! { |obj| block } -> set
+  #   set.map! { |obj| block } -> set
+  #   set.collect! -> enumerator
+  #   set.map! -> enumerator
+  #
+  # Replaces the elements with ones returned by collect().
+  # Returns an enumerator if no block is given.
+  #
+  #   set = Set.new([1, 2, 3])
+  #   set.collect! { |x| x * 2 }  #=> #<Set: {2, 4, 6}>
+  #   set                         #=> #<Set: {2, 4, 6}>
+  #
   def collect!
-    return to_enum :collect! unless block_given?
+    return to_enum(:collect!) unless block_given?
     set = self.class.new
     each { set << yield(_1) }
     replace(set)
   end
   alias map! collect!
 
-  # Deletes every element for which the given block returns true.
   #
-  # @yield [Object] Each element in the set
-  # @yieldreturn [Boolean] true if the element should be deleted
-  # @return [Set] self if any elements were deleted, nil otherwise
+  # call-seq:
+  #   set.reject! { |obj| block } -> set or nil
+  #   set.reject! -> enumerator
+  #
+  # Equivalent to Set#delete_if, but returns nil if no changes were made.
+  # Returns an enumerator if no block is given.
+  #
+  #   set = Set.new([1, 2, 3, 4, 5])
+  #   set.reject! { |x| x.even? }  #=> #<Set: {1, 3, 5}>
+  #   set.reject! { |x| x > 10 }   #=> nil
+  #
   def reject!(&block)
-    return to_enum :reject! unless block_given?
+    return to_enum(:reject!) unless block_given?
     n = size
     delete_if(&block)
     size == n ? nil : self
   end
 
-  # Deletes every element for which the given block returns false.
   #
-  # @yield [Object] Each element in the set
-  # @yieldreturn [Boolean] true if the element should be kept
-  # @return [Set] self if any elements were deleted, nil otherwise
+  # call-seq:
+  #   set.select! { |obj| block } -> set or nil
+  #   set.filter! { |obj| block } -> set or nil
+  #   set.select! -> enumerator
+  #   set.filter! -> enumerator
+  #
+  # Equivalent to Set#keep_if, but returns nil if no changes were made.
+  # Returns an enumerator if no block is given.
+  #
+  #   set = Set.new([1, 2, 3, 4, 5])
+  #   set.select! { |x| x.even? }  #=> #<Set: {2, 4}>
+  #   set.select! { |x| x.even? }  #=> nil
+  #
   def select!(&block)
-    return to_enum :select! unless block_given?
+    return to_enum(:select!) unless block_given?
     n = size
     keep_if(&block)
     size == n ? nil : self
   end
   alias filter! select!
 
-  # Classifies the elements of the set by the result of the given block.
   #
-  # @yield [Object] Each element in the set
-  # @yieldreturn [Object] The classification key
-  # @return [Hash] A hash mapping classification keys to sets of elements
+  # call-seq:
+  #   set.classify { |obj| block } -> hash
+  #   set.classify -> enumerator
+  #
+  # Classifies the set by the return value of the given block and returns a
+  # hash of {value => set of elements} pairs. Returns an enumerator if no block is given.
+  #
+  #   set = Set.new([1, 2, 3, 4, 5, 6])
+  #   set.classify { |x| x % 3 }
+  #   #=> {1=>#<Set: {1, 4}>, 2=>#<Set: {2, 5}>, 0=>#<Set: {3, 6}>}
+  #
   def classify
-    return to_enum :classify unless block_given?
+    return to_enum(:classify) unless block_given?
     h = {}
-    each { |i|
+    each {|i|
       x = yield(i)
       (h[x] ||= self.class.new).add(i)
     }
     h
   end
 
-  # Divides the set into subsets based on the result of the given block.
   #
-  # @yield [Object] Each element in the set
-  # @yieldreturn [Object] The division key
-  # @return [Set] A set containing the divided subsets
+  # call-seq:
+  #   set.divide { |obj1, obj2| block } -> set
+  #   set.divide -> enumerator
+  #
+  # Divides the set into a set of subsets according to the commonality defined
+  # by the given block. Returns an enumerator if no block is given.
+  #
+  #   set = Set.new([1, 2, 3, 4, 5, 6])
+  #   set.divide { |x, y| (x % 3) == (y % 3) }
+  #   #=> #<Set: {#<Set: {1, 4}>, #<Set: {2, 5}>, #<Set: {3, 6}>}>
+  #
   def divide(&func)
-    return to_enum :divide unless block_given?
+    return to_enum(:divide) unless block_given?
 
     if func.arity == 2
       raise NotImplementedError, "Set#divide with 2 arity block is not implemented."

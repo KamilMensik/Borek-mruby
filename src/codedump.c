@@ -236,12 +236,12 @@ codedump(mrb_state *mrb, const mrb_irep *irep, FILE *out)
       fprintf(out, "LOADSELF\tR%d\t(R0)", a);
       print_lv_a(mrb, irep, a, out);
       break;
-    CASE(OP_LOADT, B):
-      fprintf(out, "LOADT\t\tR%d\t(true)", a);
+    CASE(OP_LOADTRUE, B):
+      fprintf(out, "LOADTRUE\tR%d\t(true)", a);
       print_lv_a(mrb, irep, a, out);
       break;
-    CASE(OP_LOADF, B):
-      fprintf(out, "LOADF\t\tR%d\t(false)", a);
+    CASE(OP_LOADFALSE, B):
+      fprintf(out, "LOADFALSE\tR%d\t(false)", a);
       print_lv_a(mrb, irep, a, out);
       break;
     CASE(OP_GETGV, BB):
@@ -303,6 +303,9 @@ codedump(mrb_state *mrb, const mrb_irep *irep, FILE *out)
     CASE(OP_GETIDX, B):
       fprintf(out, "GETIDX\tR%d\t(R%d)\n", a, a+1);
       break;
+    CASE(OP_GETIDX0, BB):
+      fprintf(out, "GETIDX0\tR%d\tR%d[0]\n", a, b);
+      break;
     CASE(OP_SETIDX, B):
       fprintf(out, "SETIDX\tR%d\t(R%d)\t(R%d)\n", a, a+1, a+2);
       break;
@@ -333,6 +336,9 @@ codedump(mrb_state *mrb, const mrb_irep *irep, FILE *out)
       fprintf(out, "SSEND\t\tR%d\t:%s\t", a, mrb_sym_dump(mrb, irep->syms[b]));
       print_args(c, out);
       break;
+    CASE(OP_SSEND0, BB):
+      fprintf(out, "SSEND0\tR%d\t:%s\n", a, mrb_sym_dump(mrb, irep->syms[b]));
+      break;
     CASE(OP_SSENDB, BBB):
       fprintf(out, "SSENDB\tR%d\t:%s\t", a, mrb_sym_dump(mrb, irep->syms[b]));
       print_args(c, out);
@@ -341,12 +347,18 @@ codedump(mrb_state *mrb, const mrb_irep *irep, FILE *out)
       fprintf(out, "SEND\t\tR%d\t:%s\t", a, mrb_sym_dump(mrb, irep->syms[b]));
       print_args(c, out);
       break;
+    CASE(OP_SEND0, BB):
+      fprintf(out, "SEND0\t\tR%d\t:%s\n", a, mrb_sym_dump(mrb, irep->syms[b]));
+      break;
     CASE(OP_SENDB, BBB):
       fprintf(out, "SENDB\t\tR%d\t:%s\t", a, mrb_sym_dump(mrb, irep->syms[b]));
       print_args(c, out);
       break;
     CASE(OP_CALL, Z):
       fprintf(out, "CALL\n");
+      break;
+    CASE(OP_BLKCALL, BB):
+      fprintf(out, "BLKCALL\t\tR%d\t%d\n", a, b);
       break;
     CASE(OP_SUPER, BB):
       fprintf(out, "SUPER\t\tR%d\t", a);
@@ -362,14 +374,15 @@ codedump(mrb_state *mrb, const mrb_irep *irep, FILE *out)
       print_lv_a(mrb, irep, a, out);
       break;
     CASE(OP_ENTER, W):
-      fprintf(out, "ENTER\t\t%d:%d:%d:%d:%d:%d:%d (0x%x)\n",
+      fprintf(out, "ENTER\t\t%d:%d:%d:%d:%d:%d:%d:%d (0x%x)\n",
               MRB_ASPEC_REQ(a),
               MRB_ASPEC_OPT(a),
               MRB_ASPEC_REST(a),
               MRB_ASPEC_POST(a),
               MRB_ASPEC_KEY(a),
               MRB_ASPEC_KDICT(a),
-              MRB_ASPEC_BLOCK(a), a);
+              MRB_ASPEC_BLOCK(a),
+              MRB_ASPEC_NOBLOCK(a), a);
       break;
     CASE(OP_KEY_P, BB):
       fprintf(out, "KEY_P\t\tR%d\t:%s", a, mrb_sym_dump(mrb, irep->syms[b]));
@@ -389,6 +402,18 @@ codedump(mrb_state *mrb, const mrb_irep *irep, FILE *out)
     CASE(OP_RETURN_BLK, B):
       fprintf(out, "RETURN_BLK\tR%d\t", a);
       print_lv_a(mrb, irep, a, out);
+      break;
+    CASE(OP_RETSELF, Z):
+      fprintf(out, "RETSELF\n");
+      break;
+    CASE(OP_RETNIL, Z):
+      fprintf(out, "RETNIL\n");
+      break;
+    CASE(OP_RETTRUE, Z):
+      fprintf(out, "RETTRUE\n");
+      break;
+    CASE(OP_RETFALSE, Z):
+      fprintf(out, "RETFALSE\n");
       break;
     CASE(OP_BREAK, B):
       fprintf(out, "BREAK\t\tR%d\t", a);
@@ -421,6 +446,12 @@ codedump(mrb_state *mrb, const mrb_irep *irep, FILE *out)
     CASE(OP_DEF, BB):
       fprintf(out, "DEF\t\tR%d\t:%s\t(R%d)\n", a, mrb_sym_dump(mrb, irep->syms[b]),a+1);
       break;
+    CASE(OP_TDEF, BBB):
+      fprintf(out, "TDEF\t\tR%d\t:%s\tI[%d]\n", a, mrb_sym_dump(mrb, irep->syms[b]), c);
+      break;
+    CASE(OP_SDEF, BBB):
+      fprintf(out, "SDEF\t\tR%d\t:%s\tI[%d]\n", a, mrb_sym_dump(mrb, irep->syms[b]), c);
+      break;
     CASE(OP_UNDEF, B):
       fprintf(out, "UNDEF\t\t:%s\n", mrb_sym_dump(mrb, irep->syms[a]));
       break;
@@ -439,6 +470,14 @@ codedump(mrb_state *mrb, const mrb_irep *irep, FILE *out)
       break;
     CASE(OP_SUBI, BB):
       fprintf(out, "SUBI\t\tR%d\t%d", a, b);
+      print_lv_a(mrb, irep, a, out);
+      break;
+    CASE(OP_ADDILV, BBB):
+      fprintf(out, "ADDILV\tR%d\tR%d\t%d", a, b, c);
+      print_lv_a(mrb, irep, a, out);
+      break;
+    CASE(OP_SUBILV, BBB):
+      fprintf(out, "SUBILV\tR%d\tR%d\t%d", a, b, c);
       print_lv_a(mrb, irep, a, out);
       break;
     CASE(OP_MUL, B):
@@ -572,6 +611,9 @@ codedump(mrb_state *mrb, const mrb_irep *irep, FILE *out)
       fprintf(out, "RAISEIF\tR%d\t", a);
       print_lv_a(mrb, irep, a, out);
       break;
+    CASE(OP_MATCHERR, B):
+      fprintf(out, "MATCHERR\tR%d\n", a);
+      break;
 
     CASE(OP_DEBUG, BBB):
       fprintf(out, "DEBUG\t\t%d\t%d\t%d\n", a, b, c);
@@ -648,3 +690,4 @@ mrb_codedump_all(mrb_state *mrb, struct RProc *proc)
   mrb_codedump_all_file(mrb, proc, stdout);
 #endif
 }
+#undef CASE
